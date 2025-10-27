@@ -4,6 +4,10 @@ const cookieParser = require('cookie-parser');
 const expressRateLimit = require('express-rate-limit');
 const expressSlowDown = require('express-slow-down');
 const khaiBaoQuanhe = require('./database/association');
+const adminRouter = require('./routers/admin.router');
+const baoCaoRouter = require('./routers/baocao.router');
+const nguoiDungRouter = require('./routers/nguoidung.router');
+const truyenRouter = require('./routers/truyen.router');
 
 dotenv.config();
 
@@ -34,6 +38,14 @@ const slower = expressSlowDown({
 });
 
 app.use(slower);
+
+app.use('/admin', adminRouter);
+
+app.use('/baoCao', baoCaoRouter);
+
+app.use('/nguoiDung', nguoiDungRouter);
+
+app.use('/truyen', truyenRouter);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

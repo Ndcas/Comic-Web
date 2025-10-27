@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 23, 2025 lúc 11:25 AM
+-- Thời gian đã tạo: Th10 27, 2025 lúc 10:01 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -185,6 +185,31 @@ CREATE TABLE `theloai` (
   `TLID` int(11) NOT NULL,
   `TenTheLoai` varchar(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `theloai`
+--
+
+INSERT INTO `theloai` (`TLID`, `TenTheLoai`) VALUES
+(7, 'Bi kịch'),
+(20, 'Comics'),
+(9, 'Giả tưởng'),
+(4, 'Hài hước'),
+(1, 'Hành động'),
+(10, 'Học đường'),
+(15, 'Isekai'),
+(8, 'Khoa học viễn tưởng'),
+(6, 'Kinh dị'),
+(12, 'Lịch sử'),
+(17, 'Manga'),
+(19, 'Manhua'),
+(18, 'Manhwa'),
+(14, 'Mecha'),
+(3, 'Phiêu lưu'),
+(11, 'Thể thao'),
+(5, 'Tình cảm'),
+(13, 'Trinh thám'),
+(16, 'Đời thường');
 
 -- --------------------------------------------------------
 
@@ -402,7 +427,7 @@ ALTER TABLE `nguoidung`
 -- AUTO_INCREMENT cho bảng `theloai`
 --
 ALTER TABLE `theloai`
-  MODIFY `TLID` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `TLID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
 
 --
 -- AUTO_INCREMENT cho bảng `truyen`
