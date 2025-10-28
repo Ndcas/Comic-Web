@@ -3,7 +3,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const expressRateLimit = require('express-rate-limit');
 const expressSlowDown = require('express-slow-down');
-const khaiBaoQuanhe = require('./database/association');
+const { declareAssociation } = require('./database/association');
 const adminRouter = require('./routers/admin.router');
 const baoCaoRouter = require('./routers/baocao.router');
 const nguoiDungRouter = require('./routers/nguoidung.router');
@@ -11,7 +11,7 @@ const truyenRouter = require('./routers/truyen.router');
 
 dotenv.config();
 
-khaiBaoQuanhe();
+declareAssociation();
 
 const PORT = process.env.PORT || 8080;
 const COOKIE_SECRET = process.env.COOKIE_SECRET || 'comicwebcookie';

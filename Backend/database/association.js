@@ -18,7 +18,7 @@ const restrict = {
     onDelete: 'RESTRICT'
 }
 
-function khaiBaoQuanhe() {
+function declareAssociation() {
     //Quan hệ cho BaoCaoBinhLuan
     BaoCaoBinhLuan.belongsTo(BinhLuan, {
         foreignKey: {
@@ -267,4 +267,4 @@ function khaiBaoQuanhe() {
     });
 }
 
-module.exports = khaiBaoQuanhe;
+module.exports = { declareAssociation };
