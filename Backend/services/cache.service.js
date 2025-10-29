@@ -1,6 +1,6 @@
 const nodeCache = require('node-cache');
 
-const CACHE_TTL_SECONDS = parseInt(process.env.CACHE_TTL_SECONDS) || 604800;
+const CACHE_TTL_SECONDS = parseInt(process.env.CACHE_TTL_SECONDS);
 
 const cacheClient = new nodeCache({
     stdTTL: CACHE_TTL_SECONDS

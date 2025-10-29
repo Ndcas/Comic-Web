@@ -23,4 +23,19 @@ async function truyenMoi(req, res) {
     }
 }
 
-module.exports = { truyenMoi };
+async function truyenHot(req, res) {
+    let token = req.header('Authorization')?.split(' ')[1];
+    try {
+        let result = await truyenService.timTruyenHot(token);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({
+            truyenHot: result.data
+        });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+module.exports = { truyenMoi, truyenHot };

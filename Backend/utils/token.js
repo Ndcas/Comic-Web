@@ -1,9 +1,9 @@
 const jsonwebtoken = require('jsonwebtoken');
 
-const ACCESS_KEY = process.env.ACCESS_KEY || 'ComicWebAK';
-const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS) || 300000;
-const REFRESH_KEY = process.env.REFRESH_KEY || 'ComicWebRK';
-const REFRESH_TOKEN_TTL_MS = parseInt(process.env.REFRESH_TOKEN_TTL_MS) || 604800000;
+const ACCESS_KEY = process.env.ACCESS_KEY;
+const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
+const REFRESH_KEY = process.env.REFRESH_KEY;
+const REFRESH_TOKEN_TTL_MS = parseInt(process.env.REFRESH_TOKEN_TTL_MS);
 
 function signToken(payload, isRefresh = false) {
     let key = isRefresh ? REFRESH_KEY : ACCESS_KEY;

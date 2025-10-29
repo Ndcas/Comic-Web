@@ -1,4 +1,5 @@
 const { verifyToken } = require('../utils/token');
+const logger = require('../utils/logger');
 
 function verifyAccessToken(req, res, next) {
     try {
@@ -22,7 +23,7 @@ function verifyAccessToken(req, res, next) {
         };
         next();
     } catch (error) {
-        console.error('Lỗi khi xác thực refresh token của người dùng', error);
+        logger.error('Lỗi khi xác thực refresh token của người dùng', error);
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
 }

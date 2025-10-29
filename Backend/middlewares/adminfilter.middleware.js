@@ -1,4 +1,5 @@
 const { verifyToken } = require('../utils/token');
+const logger = require('../utils/logger');
 
 function verifyAccessToken(req, res, next) {
     try {
@@ -16,7 +17,7 @@ function verifyAccessToken(req, res, next) {
         req.authorization = { Email: payload.Email };
         next();
     } catch (error) {
-        console.error('Lỗi khi xác thực refresh token của admin', error);
+        logger.error('Lỗi khi xác thực refresh token của admin', error);
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
 }

@@ -1,9 +1,9 @@
 const { sha256 } = require('js-sha256');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
-const VTC_PAY_SECRET_KEY = process.env.VTC_PAY_SECRET_KEY || 'ocvc!t7$JQoKcRon'
-const VTC_PAY_WEBSITE_ID = parseInt(process.env.VTC_PAY_WEBSITE_ID) || 200797;
-const VTC_PAY_URL = process.env.VTC_PAY_URL || 'https://alpha1.vtcpay.vn/portalgateway/checkout.html';
+const BASE_URL = process.env.BASE_URL;
+const VTC_PAY_SECRET_KEY = process.env.VTC_PAY_SECRET_KEY;
+const VTC_PAY_WEBSITE_ID = parseInt(process.env.VTC_PAY_WEBSITE_ID);
+const VTC_PAY_URL = process.env.VTC_PAY_URL;
 
 function getURL(amount, returnPath) {
     let url = new URL(VTC_PAY_URL);

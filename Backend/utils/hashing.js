@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt');
 
-const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS) || 10;
+const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS);
 
 function hash(string) {
     return bcrypt.hashSync(string, BCRYPT_SALT_ROUNDS);

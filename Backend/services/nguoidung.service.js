@@ -1,9 +1,10 @@
-const NguoiDung = require('../models/admin.model');
+const { getFromCache, saveToCache } = require('./cache.service');
 const { compare } = require('../utils/hashing');
 const { signToken, verifyToken } = require('../utils/token');
-const { saveToCache, getFromCache } = require('./cache.service');
+const logger = require('../utils/logger');
+const NguoiDung = require('../models/admin.model');
 
-const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS) || 300000;
+const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
 
 async function dangNhap(email, matKhau) {
     try {
@@ -37,7 +38,7 @@ async function dangNhap(email, matKhau) {
             }
         };
     } catch (error) {
-        console.error('Lỗi khi đăng nhập người dùng', error);
+        logger.error('Lỗi khi đăng nhập người dùng', error);
         throw new Error('Lỗi hệ thống');
     }
 }
@@ -76,7 +77,7 @@ function lamMoiAccessToken(refreshToken) {
             }
         };
     } catch (error) {
-        console.error('Lỗi khi cấp lại access token cho người dùng', error);
+        logger.error('Lỗi khi cấp lại access token cho người dùng', error);
         throw new Error('Lỗi hệ thống');
     }
 }

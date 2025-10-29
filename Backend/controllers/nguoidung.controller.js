@@ -1,6 +1,6 @@
 const nguoiDungService = require('../services/nguoidung.service');
 
-const COOKIE_MAX_AGE_MS = parseInt(process.env.COOKIE_MAX_AGE_MS) || 604800000;
+const COOKIE_MAX_AGE_MS = parseInt(process.env.COOKIE_MAX_AGE_MS);
 
 async function dangNhap(req, res) {
     let { Email, MatKhau, ghiNho } = req.body;
