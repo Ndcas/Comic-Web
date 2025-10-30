@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 async function sendEmail(to, subject, html) {
     try {
         await transporter.sendMail({
-            from: `ComicWeb <${appEmail}>`,
+            from: `ComicWeb <${EMAIL}>`,
             to: to,
             subject: subject,
             html: html
