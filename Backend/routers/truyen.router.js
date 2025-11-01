@@ -3,8 +3,8 @@ const express = require('express');
 
 const router = express.Router();
 
-// Cần limit (số truyện cần tìm), offset (số truyện bỏ qua) trong query, có thể kèm theo access token trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi
-// => truyenMoi (mảng Truyen)
+// Cần page (số thứ tự trang bắt đầu từ 1) trong query, có thể kèm theo access token trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi
+// => truyenMoi (mảng Truyen), trangHienTai (số thứ tự trang hiện tại), trangToiDa (số thứ tự trang cuối)
 router.get('/truyenMoi', controller.truyenMoi);
 
 // Có thể kèm theo access token trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi

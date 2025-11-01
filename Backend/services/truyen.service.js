@@ -1,11 +1,14 @@
 const { QueryTypes } = require('sequelize');
 const { verifyToken } = require('../utils/token');
+const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
 const logger = require('../utils/logger');
+const Truyen = require('../models/truyen.model');
 
-const SO_TRUYEN_HOT = parseInt(process.env.SO_TRUYEN_HOT);
+const HOT_COMICS = parseInt(process.env.HOT_COMICS);
+const COMICS_PER_PAGE = parseInt(process.env.COMICS_PER_PAGE);
 
-async function timTruyenMoi(offset, limit, token = null) {
+async function timTruyenMoi(page, token = null) {
     try {
         let showR18 = false;
         let currentDate = new Date();
@@ -15,6 +18,12 @@ async function timTruyenMoi(offset, limit, token = null) {
                 showR18 = true;
             }
         }
+        let numberOfComics = await Truyen.count({
+            where: { DaDuyet: 1 },
+            include: { model: ChuongTruyen }
+        });
+        let maxPage = Math.floor(numberOfComics / COMICS_PER_PAGE);
+        page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
             SELECT Truyen.*
@@ -31,14 +40,18 @@ async function timTruyenMoi(offset, limit, token = null) {
         `;
         let result = await database.query(sql, {
             replacements: {
-                limit: limit,
-                offset: offset
+                limit: COMICS_PER_PAGE,
+                offset: (page - 1) * COMICS_PER_PAGE
             },
             type: QueryTypes.SELECT
         });
         return {
             ok: true,
-            data: result
+            data: {
+                page: page,
+                maxPage: maxPage,
+                result: result
+            }
         };
     } catch (error) {
         logger.error('Lỗi khi tìm truyện mới', error);
@@ -69,19 +82,19 @@ async function timTruyenHot(token = null) {
             ON Truyen.TID = a.TID
             WHERE Truyen.DaDuyet = 1 ${r18Condition}
             ORDER BY MaxLuotXem DESC
-            LIMIT ${SO_TRUYEN_HOT};
+            LIMIT ${HOT_COMICS};
         `;
         let result = await database.query(sql, {
-            replacements: { limit: SO_TRUYEN_HOT },
+            replacements: { limit: HOT_COMICS },
             type: QueryTypes.SELECT
         });
-        if (result.length >= SO_TRUYEN_HOT) {
+        if (result.length >= HOT_COMICS) {
             return {
                 ok: true,
                 data: result
             };
         }
-        let newLimit = SO_TRUYEN_HOT - result.length;
+        let newLimit = HOT_COMICS - result.length;
         let TIDs = result.map(item => item.TID);
         let TIDCondition = TIDs.length > 0 ? `AND Truyen.TID NOT IN (${TIDs.join(',')})` : '';
         let newSql = `

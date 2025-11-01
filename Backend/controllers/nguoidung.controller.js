@@ -21,16 +21,19 @@ async function yeuCauOTPDangKy(req, res) {
 
 async function dangKy(req, res) {
     let { Email, TenTaiKhoan, MatKhau, NamSinh, OTP } = req.body;
-    if (!Email?.trim() || !validator.isEmail(Email) || Email.length > 200) {
+    Email = Email?.trim();
+    TenTaiKhoan = TenTaiKhoan?.trim();
+    NamSinh = parseInt(NamSinh);
+    OTP = OTP?.trim();
+    if (!Email || !validator.isEmail(Email) || Email.length > 200) {
         return res.status(400).json({ error: 'Thiếu email hoặc email không đúng định dạng' });
     }
-    if (!TenTaiKhoan?.trim() || TenTaiKhoan.trim().length > 50 || TenTaiKhoan.trim().length < 3) {
+    if (!TenTaiKhoan || TenTaiKhoan.length > 50 || TenTaiKhoan.length < 3) {
         return res.status(400).json({ error: 'Thiếu tên tài khoản hoặc tên tài khoản không đúng định dạng' });
     }
     if (!MatKhau?.trim() || MatKhau.length < 8) {
         return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 8 ký tự' });
     }
-    NamSinh = parseInt(NamSinh);
     let year = (new Date()).getFullYear();
     if (!NamSinh || NamSinh < year - 150 || NamSinh > year - 5) {
         return res.status(400).json({ error: 'Năm sinh không hợp lệ' });
@@ -39,7 +42,7 @@ async function dangKy(req, res) {
         return res.status(400).json({ error: 'Thiếu OTP' });
     }
     try {
-        let result = await nguoiDungService.dangKy(TenTaiKhoan.trim(), Email.trim(), MatKhau, NamSinh, OTP);
+        let result = await nguoiDungService.dangKy(TenTaiKhoan, Email, MatKhau, NamSinh, OTP);
         if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
         }
@@ -51,6 +54,7 @@ async function dangKy(req, res) {
 
 async function dangNhap(req, res) {
     let { Email, MatKhau, ghiNho } = req.body;
+    Email = Email?.trim();
     if (!Email || !MatKhau) {
         return res.status(400).json({ error: 'Thiếu email hoặc mật khẩu' });
     }
