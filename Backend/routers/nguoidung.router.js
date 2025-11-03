@@ -18,4 +18,11 @@ router.post('/dangNhap', controller.dangNhap);
 // => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), accessToken
 router.get('/lamMoiAccessToken', controller.lamMoiAccessToken);
 
+// Yêu cầu Email trong body
+// => Gửi email chứa OTP đến email
+router.post('/yeuCauOTPQuenMatKhau', controller.yeuCauOTPQuenMatKhau);
+
+// Yêu cầu Email, oldPassword (mật khẩu cũ), newPassword (mật khẩu mới), OTP (mã gửi đến email) trong body
+router.post('/datLaiMatKhau', controller.datLaiMatKhau);
+
 module.exports = router;

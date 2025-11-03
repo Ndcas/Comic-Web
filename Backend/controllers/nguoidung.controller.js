@@ -5,11 +5,12 @@ const COOKIE_MAX_AGE_MS = parseInt(process.env.COOKIE_MAX_AGE_MS);
 
 async function yeuCauOTPDangKy(req, res) {
     let { Email } = req.body;
-    if (!Email?.trim() || !validator.isEmail(Email) || Email.trim().length > 200) {
+    Email = Email?.trim();
+    if (!Email || !validator.isEmail(Email) || Email.length > 200) {
         return res.status(400).json({ error: 'Thiếu email hoặc email không đúng định dạng' });
     }
     try {
-        let result = await nguoiDungService.guiOTPDangKy(Email.trim());
+        let result = await nguoiDungService.guiOTPDangKy(Email);
         if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
         }
@@ -100,4 +101,45 @@ async function lamMoiAccessToken(req, res) {
     }
 }
 
-module.exports = { yeuCauOTPDangKy, dangKy, dangNhap, lamMoiAccessToken };
+async function yeuCauOTPQuenMatKhau(req, res) {
+    let { Email } = req.body;
+    Email = Email?.trim();
+    if (!Email || !validator.isEmail(Email) || Email.length > 200) {
+        return res.status(400).json({ error: 'Thiếu email hoặc email không đúng định dạng' });
+    }
+    try {
+        let result = await nguoiDungService.guiOTPQuenMatKhau(Email);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Đã gửi OTP' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function datLaiMatKhau(req, res) {
+    let { Email, oldPassword, newPassword, OTP } = req.body;
+    Email = Email?.trim();
+    OTP = OTP?.trim();
+    if (!Email || !validator.isEmail(Email) || Email.length > 200) {
+        return res.status(400).json({ error: 'Thiếu email hoặc email không đúng định dạng' });
+    }
+    if (!oldPassword || !newPassword || oldPassword.length < 8 || newPassword.length < 8) {
+        return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 8 ký tự' });
+    }
+    if (!OTP) {
+        return res.status(400).json({ error: 'Thiếu OTP' });
+    }
+    try {
+        let result = await nguoiDungService.datLaiMatKhau(Email, oldPassword, newPassword, OTP);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Đặt lại mật khẩu thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+module.exports = { yeuCauOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau };

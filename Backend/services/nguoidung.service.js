@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { delFromCache, getFromCache, saveToCache } = require('./cache.service');
+const { deleteFromCache, deleteFromCachePrefix, getFromCache, saveToCache } = require('./cache.service');
 const { compare, hash } = require('../utils/hashing');
 const { sendEmail } = require('../utils/mail');
 const { signToken, verifyToken } = require('../utils/token');
@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const NguoiDung = require('../models/admin.model');
 
 const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
+const CACHE_OTP_TTL_SECONDS = parseInt(process.env.CACHE_OTP_TTL_SECONDS);
 
 async function guiOTPDangKy(email) {
     try {
@@ -34,10 +35,8 @@ async function guiOTPDangKy(email) {
         let otp = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
         let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng 5 phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
         await sendEmail(email, 'Mã OTP đăng kí tài khoản', html);
-        saveToCache(`OTPDK:${email}`, otp);
-        return {
-            ok: true
-        };
+        saveToCache(`OTPDK:${email}`, otp, CACHE_OTP_TTL_SECONDS);
+        return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi gửi OTP đăng ký cho người dùng', error);
         throw new Error('Lỗi hệ thống');
@@ -73,7 +72,7 @@ async function dangKy(tenTaiKhoan, email, matKhau, namSinh, otp) {
                 error: 'Mã OTP không đúng'
             };
         }
-        delFromCache(`OTPDK:${email}`);
+        deleteFromCache(`OTPDK:${email}`);
         let matKhauHash = hash(matKhau);
         let nguoiDungMoi = new NguoiDung();
         nguoiDungMoi.Diem = 0;
@@ -86,9 +85,7 @@ async function dangKy(tenTaiKhoan, email, matKhau, namSinh, otp) {
         let nguoiDungDaThem = await nguoiDungMoi.save();
         return {
             ok: true,
-            data: {
-                NDID: nguoiDungDaThem.NDID
-            }
+            data: { NDID: nguoiDungDaThem.NDID }
         };
     } catch (error) {
         logger.error('Lỗi khi đăng ký tài khoản người dùng', error);
@@ -108,6 +105,13 @@ async function dangNhap(email, matKhau) {
                 error: 'Tài khoản hoặc mật khẩu không đúng'
             };
         }
+        if (nguoiDung.TrangThai == 0) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Tài khoản đã bị khóa'
+            };
+        }
         let payload = {
             NDID: nguoiDung.NDID,
             TenTaiKhoan: nguoiDung.TenTaiKhoan,
@@ -118,7 +122,7 @@ async function dangNhap(email, matKhau) {
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
         let refreshToken = signToken(payload, true);
-        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, "1");
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
         return {
             ok: true,
             data: {
@@ -172,4 +176,70 @@ function lamMoiAccessToken(refreshToken) {
     }
 }
 
-module.exports = { guiOTPDangKy, dangKy, dangNhap, lamMoiAccessToken };
+async function guiOTPQuenMatKhau(email) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            where: {
+                Email: email,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Tài khoản không tồn tại hoặc đã bị khóa'
+            };
+        }
+        let otp = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+        let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng 5 phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
+        await sendEmail(email, 'Mã OTP đặt lại mật khẩu', html);
+        saveToCache(`OTPQMK:${email}`, otp, CACHE_OTP_TTL_SECONDS);
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi gửi OTP quên mật khẩu cho người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function datLaiMatKhau(email, oldPassword, newPassword, otp) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            where: {
+                Email: email,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Tài khoản không tồn tại hoặc đã bị khóa'
+            };
+        }
+        if (!compare(oldPassword, nguoiDung.MatKhau)) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Mật khẩu cũ không đúng'
+            };
+        }
+        if (getFromCache(`OTPQMK:${email}`) != otp) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'OTP đã hết hạn hoặc không đúng'
+            };
+        }
+        deleteFromCache(`OTPQMK:${email}`);
+        nguoiDung.MatKhau = hash(newPassword);
+        await nguoiDung.save();
+        deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi đặt lại mật khẩu người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = { guiOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, guiOTPQuenMatKhau, datLaiMatKhau };
