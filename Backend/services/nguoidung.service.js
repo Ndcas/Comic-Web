@@ -33,7 +33,7 @@ async function guiOTPDangKy(email) {
             };
         }
         let otp = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-        let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng 5 phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
+        let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng ${CACHE_OTP_TTL_SECONDS / 60} phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
         await sendEmail(email, 'Mã OTP đăng kí tài khoản', html);
         saveToCache(`OTPDK:${email}`, otp, CACHE_OTP_TTL_SECONDS);
         return { ok: true };
@@ -137,7 +137,7 @@ async function dangNhap(email, matKhau) {
     }
 }
 
-function lamMoiAccessToken(refreshToken) {
+async function lamMoiAccessToken(refreshToken) {
     try {
         let payload = verifyToken(refreshToken, true);
         if (!payload) {
@@ -192,7 +192,7 @@ async function guiOTPQuenMatKhau(email) {
             };
         }
         let otp = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-        let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng 5 phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
+        let html = `<p>Mã xác thực của bạn là: <b>${otp}</b></p><p>Mã có hiệu lực trong vòng ${CACHE_OTP_TTL_SECONDS / 60} phút, vui lòng không chia sẻ mã này với bất kỳ ai khác.</p>`;
         await sendEmail(email, 'Mã OTP đặt lại mật khẩu', html);
         saveToCache(`OTPQMK:${email}`, otp, CACHE_OTP_TTL_SECONDS);
         return { ok: true };
@@ -242,4 +242,58 @@ async function datLaiMatKhau(email, oldPassword, newPassword, otp) {
     }
 }
 
-module.exports = { guiOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, guiOTPQuenMatKhau, datLaiMatKhau };
+async function doiMatKhau(id, oldPassword, newPassword) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            where: {
+                NDID: id,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Tài khoản không tồn tại hoặc đã bị khóa'
+            };
+        }
+        if (!compare(oldPassword, nguoiDung.MatKhau)) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Mật khẩu cũ không đúng'
+            };
+        }
+        nguoiDung.MatKhau = hash(newPassword);
+        await nguoiDung.save();
+        deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+        let payload = {
+            NDID: nguoiDung.NDID,
+            TenTaiKhoan: nguoiDung.TenTaiKhoan,
+            Email: nguoiDung.Email,
+            NgayThamGia: nguoiDung.NgayThamGia,
+            NamSinh: nguoiDung.NamSinh
+        };
+        let refreshToken = signToken(payload, true);
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
+        return {
+            ok: true,
+            data: { refreshToken: refreshToken }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi đổi mật khẩu người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function dangXuat(id, refreshToken) {
+    try {
+        deleteFromCache(`RTNguoiDung:${id}:${refreshToken}`);
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi đổi đăng xuất người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = { guiOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, guiOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat };

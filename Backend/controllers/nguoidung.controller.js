@@ -71,6 +71,7 @@ async function dangNhap(req, res) {
         };
         if (ghiNho) {
             cookieOptions.maxAge = COOKIE_MAX_AGE_MS;
+            res.cookie('ghiNho', '1', cookieOptions);
         }
         res.cookie('refreshToken', result.data.refreshToken, cookieOptions);
         return res.json({
@@ -88,7 +89,7 @@ async function lamMoiAccessToken(req, res) {
         return res.status(400).json({ error: 'Thiếu refresh token' });
     }
     try {
-        let result = nguoiDungService.lamMoiAccessToken(refreshToken);
+        let result = await nguoiDungService.lamMoiAccessToken(refreshToken);
         if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
         }
@@ -142,4 +143,47 @@ async function datLaiMatKhau(req, res) {
     }
 }
 
-module.exports = { yeuCauOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau };
+async function doiMatKhau(req, res) {
+    let { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword || oldPassword.length < 8 || newPassword.length < 8) {
+        return res.status(400).json({ error: 'Mật khẩu phải có ít nhất 8 ký tự' });
+    }
+    try {
+        let result = await nguoiDungService.doiMatKhau(req.authorization.NDID, oldPassword, newPassword);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        let cookieOptions = {
+            httpOnly: true,
+            signed: true
+        };
+        if (req.signedCookies.ghiNho == '1') {
+            cookieOptions.maxAge = COOKIE_MAX_AGE_MS;
+            res.cookie('ghiNho', '1', cookieOptions);
+        }
+        res.cookie('refreshToken', result.data.refreshToken, cookieOptions);
+        return res.json({ message: 'Đổi mật khẩu thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function dangXuat(req, res) {
+    try {
+        let refreshToken = req.signedCookies.refreshToken;
+        if (!refreshToken) {
+            return res.status(400).json({ error: 'Thiếu refresh token' });
+        }
+        let result = await nguoiDungService.dangXuat(req.authorization.NDID, refreshToken);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        res.clearCookie('refreshToken');
+        res.clearCookie('ghiNho');
+        return res.json({ message: 'Đăng xuất thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+module.exports = { yeuCauOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat };
