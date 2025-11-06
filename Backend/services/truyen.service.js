@@ -1,9 +1,13 @@
-const { Op, QueryTypes } = require('sequelize');
+const { Op, QueryTypes, where } = require('sequelize');
 const { getFromCache, saveToCache } = require('./cache.service');
 const { verifyToken } = require('../utils/token');
+const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
+const HinhAnh = require('../models/hinhanh.model');
+const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
+const NguoiDung = require('../models/nguoidung.model');
 const TheLoai = require('../models/theloai.model');
 const TheLoaiTruyen = require('../models/theloaitruyen.model');
 const Truyen = require('../models/truyen.model');
@@ -15,9 +19,16 @@ const CACHE_NUM_COMICS_TTL_SECONDS = parseInt(process.env.CACHE_NUM_COMICS_TTL_S
 async function timTruyenMoi(page, token = null) {
     try {
         let showR18 = false;
-        let currentDate = new Date();
         if (token) {
             let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
             if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
@@ -78,9 +89,16 @@ async function timTruyenMoi(page, token = null) {
 async function timTruyenHot(token = null) {
     try {
         let showR18 = false;
-        let currentDate = new Date();
         if (token) {
             let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
             if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
@@ -140,6 +158,7 @@ async function timTruyenHot(token = null) {
 async function timTruyenTheoTheLoai(tlid, page, token = null) {
     try {
         let theLoai = await TheLoai.findOne({
+            attributes: ['TLID'],
             where: { TLID: tlid }
         });
         if (!theLoai) {
@@ -150,9 +169,16 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
             };
         }
         let showR18 = false;
-        let currentDate = new Date();
         if (token) {
             let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
             if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
@@ -220,9 +246,16 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
 async function timTruyenTheoTuKhoa(keyword, page, token = null) {
     try {
         let showR18 = false;
-        let currentDate = new Date();
         if (token) {
             let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
             if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
@@ -286,4 +319,156 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
     }
 }
 
-module.exports = { timTruyenMoi, timTruyenHot, timTruyenTheoTheLoai, timTruyenTheoTuKhoa };
+async function layThongTinTruyen(tid, token = null) {
+    try {
+        let showR18 = false;
+        let ndid = null;
+        if (token) {
+            let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
+            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+                showR18 = true;
+            }
+            ndid = payload.NDID;
+        }
+        let searchCriteria = {
+            TID: tid,
+            DaDuyet: 1
+        };
+        if (!showR18) {
+            criteria.GioiHan18Tuoi = 0;
+        }
+        let truyen = await Truyen.findOne({
+            where: searchCriteria,
+            include: [{
+                model: NguoiDung,
+                attributes: ['TenTaiKhoan']
+            }, {
+                model: ChuongTruyen,
+                attributes: [],
+                required: true
+            }]
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        let chuongTruyens;
+        if (ndid) {
+            chuongTruyens = await ChuongTruyen.findAll({
+                where: { TID: tid },
+                include: {
+                    model: ChuongDaMoKhoa,
+                    attributes: ['CTID'],
+                    where: { NDID: ndid },
+                    required: false
+                },
+            });
+        } else {
+            chuongTruyens = await ChuongTruyen.find({
+                where: { TID: tid }
+            });
+        }
+        return {
+            ok: true,
+            data: {
+                truyen: truyen,
+                chuongTruyens: chuongTruyens
+            }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layThongTinChuongTruyen(ctid, token = null) {
+    try {
+        let showR18 = false;
+        let ndid = null;
+        let bought = false;
+        if (token) {
+            let payload = verifyToken(token);
+            if (!payload) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
+            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+                showR18 = true;
+            }
+            ndid = payload.NDID;
+            let chuongDaMoKhoa = await ChuongDaMoKhoa.findOne({
+                attributes: ['CTID'],
+                where: {
+                    CTID: ctid,
+                    NDID: ndid
+                }
+            });
+            if (chuongDaMoKhoa) {
+                bought = true;
+            }
+        }
+        let includeCriteria = [{
+            model: HinhAnh,
+            attributes: ['HinhAnh']
+        }];
+        if (!showR18) {
+            includeCriteria.append({
+                model: Truyen,
+                attributes: [],
+                where: { GioiHan18Tuoi: 0 },
+                required: true
+            });
+        }
+        let criteria = { CTID: ctid };
+        if (!bought) {
+            criteria.GiaChuong = 0;
+        }
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: criteria,
+            include: includeCriteria
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu'
+            };
+        }
+        chuongTruyen.LuotXem += 1;
+        let lichSuDoc = new LichSuDoc();
+        lichSuDoc.NDID = ndid;
+        lichSuDoc.CTID = ctid;
+        lichSuDoc.NgayDoc = new Date();
+        await database.transaction(async (transaction) => {
+            await chuongTruyen.save({ transaction: transaction });
+            await lichSuDoc.save({ transaction: transaction });
+        })
+        return {
+            ok: true,
+            data: { chuongTruyen: chuongTruyen }
+        };
+    } catch (error) {
+        if (transaction) {
+            await transaction.rollback();
+        }
+        logger.error('Lỗi khi lấy thông tin chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = { timTruyenMoi, timTruyenHot, timTruyenTheoTheLoai, timTruyenTheoTuKhoa, layThongTinTruyen, layThongTinChuongTruyen };
