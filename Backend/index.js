@@ -4,6 +4,7 @@ const { declareAssociation } = require('./database/association');
 const adminRouter = require('./routers/admin.router');
 const baoCaoRouter = require('./routers/baocao.router');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 const express = require('express');
 const expressRateLimit = require('express-rate-limit');
 const expressSlowDown = require('express-slow-down');
@@ -39,6 +40,8 @@ const slower = expressSlowDown({
 });
 
 app.use(slower);
+
+app.use(cors());
 
 app.use('/admin', adminRouter);
 
