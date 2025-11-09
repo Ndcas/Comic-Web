@@ -467,7 +467,7 @@ async function layThongTinChuongTruyen(ctid, token = null) {
     }
 }
 
-async function themTruyen(ndid, tenTruyen, moTa, tenFileAnhBia, tacGia, gioiHan18Tuoi) {
+async function themTruyen(ndid, tenTruyen, moTa, coverFileName, tacGia, gioiHan18Tuoi) {
     try {
         let nguoiDung = await NguoiDung.findOne({
             attributes: ['NDID'],
@@ -480,7 +480,7 @@ async function themTruyen(ndid, tenTruyen, moTa, tenFileAnhBia, tacGia, gioiHan1
             return {
                 ok: false,
                 status: 401,
-                error: 'Người dùng không có quyền yêu cầu đăng truyện'
+                error: 'Người dùng không có quyền đăng truyện'
             };
         }
         let truyen = new Truyen();
@@ -488,7 +488,7 @@ async function themTruyen(ndid, tenTruyen, moTa, tenFileAnhBia, tacGia, gioiHan1
         truyen.TenTruyen = tenTruyen;
         truyen.MoTa = moTa;
         truyen.TacGia = tacGia;
-        truyen.AnhBia = tenFileAnhBia;
+        truyen.AnhBia = coverFileName;
         truyen.GioiHan18Tuoi = gioiHan18Tuoi;
         await truyen.save();
         return { ok: true };

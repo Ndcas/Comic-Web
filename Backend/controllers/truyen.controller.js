@@ -130,12 +130,33 @@ async function thongTinChuongTruyen(req, res) {
 }
 
 async function themTruyen(req, res) {
-    let token = req.header('Authorization')?.split(' ')[1];
     let { TenTruyen, MoTa, TacGia, GioiHan18Tuoi } = req.body;
-    if (req.file) {
-        console.log(req.file.filename);
+    TenTruyen = TenTruyen?.trim();
+    if (!TenTruyen) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
     }
-    return res.json({ message: 'ok' });
+    MoTa = MoTa?.trim();
+    if (!MoTa) {
+        MoTa = null;
+    }
+    TacGia = TacGia?.trim();
+    if (!TacGia) {
+        TacGia = null;
+    }
+    GioiHan18Tuoi = GioiHan18Tuoi ? true : false;
+    let coverFileName = null;
+    if (req.file) {
+        coverFileName = req.file.filename;
+    }
+    try {
+        let result = await truyenService.themTruyen(req.authorization.NDID, TenTruyen, MoTa, coverFileName, TacGia, GioiHan18Tuoi);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Đã thêm truyện và đang chờ được duyệt' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
 }
 
 module.exports = { truyenMoi, truyenHot, truyenTheoTheLoai, truyenTheoTuKhoa, thongTinTruyen, thongTinChuongTruyen, themTruyen };
