@@ -21,7 +21,7 @@ async function timTruyenMoi(page, token = null) {
         let showR18 = false;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -29,7 +29,7 @@ async function timTruyenMoi(page, token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
         }
@@ -91,7 +91,7 @@ async function timTruyenHot(token = null) {
         let showR18 = false;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -99,7 +99,7 @@ async function timTruyenHot(token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
         }
@@ -171,7 +171,7 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
         let showR18 = false;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -179,7 +179,7 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
         }
@@ -248,7 +248,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
         let showR18 = false;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -256,7 +256,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
         }
@@ -325,7 +325,7 @@ async function layThongTinTruyen(tid, token = null) {
         let ndid = null;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -333,7 +333,7 @@ async function layThongTinTruyen(tid, token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
             ndid = payload.NDID;
@@ -407,7 +407,7 @@ async function layThongTinChuongTruyen(ctid, token = null) {
                 };
             }
             let currentDate = new Date();
-            if (payload.NamSinh && currentDate.getFullYear() - payload.NamSinh >= 18) {
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
                 showR18 = true;
             }
             ndid = payload.NDID;
@@ -453,7 +453,6 @@ async function layThongTinChuongTruyen(ctid, token = null) {
         let lichSuDoc = new LichSuDoc();
         lichSuDoc.NDID = ndid;
         lichSuDoc.CTID = ctid;
-        lichSuDoc.NgayDoc = new Date();
         await database.transaction(async (transaction) => {
             await chuongTruyen.save({ transaction: transaction });
             await lichSuDoc.save({ transaction: transaction });
@@ -463,12 +462,40 @@ async function layThongTinChuongTruyen(ctid, token = null) {
             data: { chuongTruyen: chuongTruyen }
         };
     } catch (error) {
-        if (transaction) {
-            await transaction.rollback();
-        }
         logger.error('Lỗi khi lấy thông tin chương truyện', error);
         throw new Error('Lỗi hệ thống');
     }
 }
 
-module.exports = { timTruyenMoi, timTruyenHot, timTruyenTheoTheLoai, timTruyenTheoTuKhoa, layThongTinTruyen, layThongTinChuongTruyen };
+async function themTruyen(ndid, tenTruyen, moTa, tenFileAnhBia, tacGia, gioiHan18Tuoi) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Người dùng không có quyền yêu cầu đăng truyện'
+            };
+        }
+        let truyen = new Truyen();
+        truyen.NDID = ndid;
+        truyen.TenTruyen = tenTruyen;
+        truyen.MoTa = moTa;
+        truyen.TacGia = tacGia;
+        truyen.AnhBia = tenFileAnhBia;
+        truyen.GioiHan18Tuoi = gioiHan18Tuoi;
+        await truyen.save();
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi lấy thêm truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = { timTruyenMoi, timTruyenHot, timTruyenTheoTheLoai, timTruyenTheoTuKhoa, layThongTinTruyen, layThongTinChuongTruyen, themTruyen };

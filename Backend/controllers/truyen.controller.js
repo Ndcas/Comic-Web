@@ -129,4 +129,13 @@ async function thongTinChuongTruyen(req, res) {
     }
 }
 
-module.exports = { truyenMoi, truyenHot, truyenTheoTheLoai, truyenTheoTuKhoa, thongTinTruyen, thongTinChuongTruyen };
+async function themTruyen(req, res) {
+    let token = req.header('Authorization')?.split(' ')[1];
+    let { TenTruyen, MoTa, TacGia, GioiHan18Tuoi } = req.body;
+    if (req.file) {
+        console.log(req.file.filename);
+    }
+    return res.json({ message: 'ok' });
+}
+
+module.exports = { truyenMoi, truyenHot, truyenTheoTheLoai, truyenTheoTuKhoa, thongTinTruyen, thongTinChuongTruyen, themTruyen };

@@ -5,7 +5,7 @@ const { sendEmail } = require('../utils/mail');
 const { signToken, verifyToken } = require('../utils/token');
 const Admin = require('../models/admin.model');
 const logger = require('../utils/logger');
-const NguoiDung = require('../models/admin.model');
+const NguoiDung = require('../models/nguoidung.model');
 
 const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
 const CACHE_OTP_TTL_SECONDS = parseInt(process.env.CACHE_OTP_TTL_SECONDS);
@@ -75,13 +75,10 @@ async function dangKy(tenTaiKhoan, email, matKhau, namSinh, otp) {
         deleteFromCache(`OTPDK:${email}`);
         let matKhauHash = hash(matKhau);
         let nguoiDungMoi = new NguoiDung();
-        nguoiDungMoi.Diem = 0;
         nguoiDungMoi.Email = email;
         nguoiDungMoi.MatKhau = matKhauHash;
         nguoiDungMoi.NamSinh = namSinh;
-        nguoiDungMoi.NgayThamGia = new Date();
         nguoiDungMoi.TenTaiKhoan = tenTaiKhoan;
-        nguoiDungMoi.TrangThai = 1;
         let nguoiDungDaThem = await nguoiDungMoi.save();
         return {
             ok: true,
@@ -117,7 +114,8 @@ async function dangNhap(email, matKhau) {
             TenTaiKhoan: nguoiDung.TenTaiKhoan,
             Email: nguoiDung.Email,
             NgayThamGia: nguoiDung.NgayThamGia,
-            NamSinh: nguoiDung.NamSinh
+            NamSinh: nguoiDung.NamSinh,
+            isUser: true
         };
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
@@ -159,7 +157,8 @@ async function lamMoiAccessToken(refreshToken) {
             TenTaiKhoan: payload.TenTaiKhoan,
             Email: payload.Email,
             NgayThamGia: payload.NgayThamGia,
-            NamSinh: payload.NamSinh
+            NamSinh: payload.NamSinh,
+            isUser: true
         };
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
@@ -272,7 +271,8 @@ async function doiMatKhau(id, oldPassword, newPassword) {
             TenTaiKhoan: nguoiDung.TenTaiKhoan,
             Email: nguoiDung.Email,
             NgayThamGia: nguoiDung.NgayThamGia,
-            NamSinh: nguoiDung.NamSinh
+            NamSinh: nguoiDung.NamSinh,
+            isUser: true
         };
         let refreshToken = signToken(payload, true);
         saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');

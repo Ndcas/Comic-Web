@@ -8,6 +8,7 @@ const express = require('express');
 const expressRateLimit = require('express-rate-limit');
 const expressSlowDown = require('express-slow-down');
 const logger = require('./utils/logger');
+const multer = require('multer');
 const nguoiDungRouter = require('./routers/nguoidung.router');
 const truyenRouter = require('./routers/truyen.router');
 
@@ -46,6 +47,21 @@ app.use('/baoCao', baoCaoRouter);
 app.use('/nguoiDung', nguoiDungRouter);
 
 app.use('/truyen', truyenRouter);
+
+app.use((error, req, res, next) => {
+    if (!(error instanceof multer.MulterError)) {
+        return next(error);
+    }
+    switch (error.code) {
+        case 'LIMIT_FILE_SIZE':
+            return res.status(400).json({ error: 'File quá lớn' });
+        case 'LIMIT_FILE_COUNT':
+            return res.status(400).json({ error: 'Quá nhiều file' });
+        default:
+            logger.error('Lỗi xử lý file tải lên', error);
+            return res.status(400).json({ error: 'Lỗi không xác định liên quan tới file được tải lên' });
+    }
+});
 
 app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);

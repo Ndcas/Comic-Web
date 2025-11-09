@@ -11,7 +11,7 @@ function verifyAccessToken(req, res, next) {
             return res.status(400).json({ error: 'Thiếu token' });
         }
         let payload = verifyToken(accessToken);
-        if (!payload) {
+        if (!payload || !payload.isUser) {
             return res.status(401).json({ error: 'Token không hợp lệ' });
         }
         req.authorization = {
