@@ -1,4 +1,4 @@
-const { Op, QueryTypes, where } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const { getFromCache, saveToCache } = require('./cache.service');
 const { verifyToken } = require('../utils/token');
 const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
@@ -77,7 +77,7 @@ async function timTruyenMoi(page, token = null) {
             data: {
                 page: page,
                 maxPage: maxPage,
-                result: result
+                truyenMoi: result
             }
         };
     } catch (error) {
@@ -149,6 +149,10 @@ async function timTruyenHot(token = null) {
             type: QueryTypes.SELECT
         });
         result.push(...newResult);
+        return {
+            ok: true,
+            data: { truyenHot: result }
+        }
     } catch (error) {
         logger.error('Lỗi khi tìm truyện hot', error);
         throw new Error('Lỗi hệ thống');
@@ -234,7 +238,7 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
             data: {
                 page: page,
                 maxPage: maxPage,
-                result: result
+                truyenTheoTheLoai: result
             }
         };
     } catch (error) {
@@ -310,7 +314,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
             data: {
                 page: page,
                 maxPage: maxPage,
-                result: result
+                truyenTheoTuKhoa: result
             }
         };
     } catch (error) {
@@ -399,7 +403,7 @@ async function layThongTinChuongTruyen(ctid, token = null) {
         let bought = false;
         if (token) {
             let payload = verifyToken(token);
-            if (!payload) {
+            if (!payload || !payload.isUser) {
                 return {
                     ok: false,
                     status: 400,
@@ -498,4 +502,106 @@ async function themTruyen(ndid, tenTruyen, moTa, coverFileName, tacGia, gioiHan1
     }
 }
 
-module.exports = { timTruyenMoi, timTruyenHot, timTruyenTheoTheLoai, timTruyenTheoTuKhoa, layThongTinTruyen, layThongTinChuongTruyen, themTruyen };
+async function timTruyenChuaDuyet() {
+    try {
+        let result = await Truyen.findAll({
+            where: { DaDuyet: 0 }
+        });
+        return ({
+            ok: true,
+            data: { truyens: result }
+        })
+    } catch (error) {
+        logger.error('Lỗi khi tìm truyện chưa duyệt', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function duyetTruyen(tid, daDuyet, lyDoTuChoi = null) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: {
+                TID: tid,
+                DaDuyet: 0
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        if (!daDuyet) {
+            truyen.DaDuyet = -1;
+            truyen.LyDoTuChoi = lyDoTuChoi;
+        } else {
+            truyen.DaDuyet = 1;
+        }
+        await truyen.save();
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi duyệt truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layThongTinTruyenAdmin(tid) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: { TID: tid },
+            include: { model: ChuongTruyen }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        return {
+            ok: true,
+            data: { truyen: truyen }
+        }
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin truyện cho Admin', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layThongTinChuongTruyenAdmin(ctid) {
+    try {
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: { CTID: ctid },
+            include: { model: HinhAnh }
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu'
+            };
+        }
+        return {
+            ok: true,
+            data: { chuongTruyen: chuongTruyen }
+        }
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin chương truyện cho Admin', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = {
+    timTruyenMoi,
+    timTruyenHot,
+    timTruyenTheoTheLoai,
+    timTruyenTheoTuKhoa,
+    layThongTinTruyen,
+    layThongTinChuongTruyen,
+    themTruyen,
+    timTruyenChuaDuyet,
+    duyetTruyen,
+    layThongTinTruyenAdmin,
+    layThongTinChuongTruyenAdmin
+};

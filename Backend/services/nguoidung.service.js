@@ -296,4 +296,59 @@ async function dangXuat(id, refreshToken) {
     }
 }
 
-module.exports = { guiOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, guiOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat };
+async function timTatCaNguoiDung() {
+    try {
+        let result = await NguoiDung.findAll({
+            attributes: {
+                exclude: ['MatKhau']
+            }
+        });
+        return {
+            ok: true,
+            data: { nguoiDungs: result }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tìm tất cả người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function capNhatNguoiDung(ndid, trangThai, diem = null) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            where: { NDID: ndid }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Người dùng không tồn tại'
+            };
+        }
+        if (diem != null) {
+            nguoiDung.Diem = diem;
+        }
+        nguoiDung.TrangThai = trangThai;
+        if (trangThai == 0) {
+            deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+        }
+        await nguoiDung.save();
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi cập nhật thông tin người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = {
+    guiOTPDangKy,
+    dangKy,
+    dangNhap,
+    lamMoiAccessToken,
+    guiOTPQuenMatKhau,
+    datLaiMatKhau,
+    doiMatKhau,
+    dangXuat,
+    timTatCaNguoiDung,
+    capNhatNguoiDung
+};

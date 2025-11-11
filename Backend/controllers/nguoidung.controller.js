@@ -186,4 +186,52 @@ async function dangXuat(req, res) {
     }
 }
 
-module.exports = { yeuCauOTPDangKy, dangKy, dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat };
+async function tatCaNguoiDung(req, res) {
+    try {
+        let result = await nguoiDungService.timTatCaNguoiDung();
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ nguoiDungs: result.data.nguoiDungs });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function capNhatNguoiDung(req, res) {
+    let { NDID, Diem, TrangThai } = req.body;
+    NDID = parseInt(NDID);
+    Diem = parseInt(Diem);
+    TrangThai = parseInt(TrangThai);
+    if (!NDID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    if (!Diem || Diem < 0) {
+        return res.status(400).json({ error: 'Điểm không hợp lệ' });
+    }
+    if (!TrangThai || (TrangThai != 1 && TrangThai != 0)) {
+        return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
+    }
+    try {
+        let result = await nguoiDungService.capNhatNguoiDung(NDID, Diem, TrangThai);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Cập nhật người dùng thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+module.exports = {
+    yeuCauOTPDangKy,
+    dangKy,
+    dangNhap,
+    lamMoiAccessToken,
+    yeuCauOTPQuenMatKhau,
+    datLaiMatKhau,
+    doiMatKhau,
+    dangXuat,
+    tatCaNguoiDung,
+    capNhatNguoiDung
+};
