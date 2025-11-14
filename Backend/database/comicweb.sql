@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 27, 2025 lúc 10:01 AM
+-- Thời gian đã tạo: Th10 14, 2025 lúc 08:55 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -158,6 +158,15 @@ CREATE TABLE `loaigiaodich` (
   `TenLGD` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Đang đổ dữ liệu cho bảng `loaigiaodich`
+--
+
+INSERT INTO `loaigiaodich` (`LGDID`, `TenLGD`) VALUES
+(1, 'Cộng điểm'),
+(3, 'Hoàn điểm'),
+(2, 'Trừ điểm');
+
 -- --------------------------------------------------------
 
 --
@@ -174,6 +183,13 @@ CREATE TABLE `nguoidung` (
   `TrangThai` int(11) NOT NULL DEFAULT 1 CHECK (`TrangThai` in (0,1)),
   `NamSinh` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Đang đổ dữ liệu cho bảng `nguoidung`
+--
+
+INSERT INTO `nguoidung` (`NDID`, `TenTaiKhoan`, `Email`, `MatKhau`, `Diem`, `NgayThamGia`, `TrangThai`, `NamSinh`) VALUES
+(1, 'ndhung', 'hungb2203556@student.ctu.edu.vn', '$2b$10$Na9V3AgFp5bTvcVFD8hgTeg2AtsTfrrHuLR3hAa5VJrUgDqiomYc6', 0, '2025-11-09', 1, 2004);
 
 -- --------------------------------------------------------
 
@@ -415,13 +431,13 @@ ALTER TABLE `lichsudoc`
 -- AUTO_INCREMENT cho bảng `loaigiaodich`
 --
 ALTER TABLE `loaigiaodich`
-  MODIFY `LGDID` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `LGDID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT cho bảng `nguoidung`
 --
 ALTER TABLE `nguoidung`
-  MODIFY `NDID` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `NDID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT cho bảng `theloai`

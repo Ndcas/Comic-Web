@@ -1,20 +1,38 @@
-const { Op, QueryTypes } = require('sequelize');
+const { Op, QueryTypes, where } = require('sequelize');
 const { getFromCache, saveToCache } = require('./cache.service');
 const { verifyToken } = require('../utils/token');
+const BaoCaoTruyen = require('../models/baocaotruyen.model');
+const BinhLuan = require('../models/binhluan.model');
 const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
+const fs = require('fs/promises');
 const HinhAnh = require('../models/hinhanh.model');
+const LichSuDiem = require('../models/lichsudiem.model');
 const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
 const NguoiDung = require('../models/nguoidung.model');
 const TheLoai = require('../models/theloai.model');
 const TheLoaiTruyen = require('../models/theloaitruyen.model');
 const Truyen = require('../models/truyen.model');
+const YeuThich = require('../models/yeuthich.model');
 
 const HOT_COMICS = parseInt(process.env.HOT_COMICS);
 const COMICS_PER_PAGE = parseInt(process.env.COMICS_PER_PAGE);
 const CACHE_NUM_COMICS_TTL_SECONDS = parseInt(process.env.CACHE_NUM_COMICS_TTL_SECONDS);
+
+async function layDanhSachTheLoai() {
+    try {
+        let result = await TheLoai.findAll();
+        return {
+            ok: true,
+            data: { theLoais: result }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy danh sách thể loại', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
 
 async function timTruyenMoi(page, token = null) {
     try {
@@ -471,7 +489,7 @@ async function layThongTinChuongTruyen(ctid, token = null) {
     }
 }
 
-async function themTruyen(ndid, tenTruyen, moTa, coverFileName, tacGia, gioiHan18Tuoi) {
+async function themTruyen(ndid, tenTruyen, moTa, coverFileName, tacGia, gioiHan18Tuoi, theLoais) {
     try {
         let nguoiDung = await NguoiDung.findOne({
             attributes: ['NDID'],
@@ -487,14 +505,39 @@ async function themTruyen(ndid, tenTruyen, moTa, coverFileName, tacGia, gioiHan1
                 error: 'Người dùng không có quyền đăng truyện'
             };
         }
-        let truyen = new Truyen();
-        truyen.NDID = ndid;
-        truyen.TenTruyen = tenTruyen;
-        truyen.MoTa = moTa;
-        truyen.TacGia = tacGia;
-        truyen.AnhBia = coverFileName;
-        truyen.GioiHan18Tuoi = gioiHan18Tuoi;
-        await truyen.save();
+        let countTheLoai = await TheLoai.count({
+            where: {
+                TLID: { [Op.in]: theLoais }
+            }
+        });
+        if (countTheLoai != theLoais.length) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Có thể loại không tồn tại'
+            };
+        }
+        await database.transaction(async (transaction) => {
+            let truyen = await Truyen.create({
+                NDID: ndid,
+                TenTruyen: tenTruyen,
+                MoTa: moTa,
+                TacGia: tacGia,
+                AnhBia: coverFileName,
+                GioiHan18Tuoi: gioiHan18Tuoi
+            }, { transaction: transaction });
+            let theLoaiTruyens = [];
+            theLoais.forEach(item => {
+                theLoaiTruyens.push({
+                    TID: truyen.TID,
+                    TLID: item
+                });
+            });
+            await TheLoaiTruyen.bulkCreate(theLoaiTruyens, {
+                validate: true,
+                transaction: transaction
+            });
+        })
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi lấy thêm truyện', error);
@@ -592,7 +635,399 @@ async function layThongTinChuongTruyenAdmin(ctid) {
     }
 }
 
+async function timTruyenDaDang(ndid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Người dùng không tồn tại hoặc đã bị chặn'
+            };
+        }
+        let truyens = await Truyen.findAll({
+            where: { NDID: nguoiDung.NDID }
+        });
+        return {
+            ok: true,
+            data: { truyens: truyens }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tìm truyện đã đăng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function tinhSoDiemCanDeXoaTruyen(tid) {
+    try {
+        let truyen = await Truyen.findByPk(tid);
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện'
+            };
+        }
+        if (truyen.DaDuyet == 0 || truyen.DaDuyet == -1) {
+            return {
+                ok: true,
+                data: { diem: 0 }
+            };
+        }
+        let chuongTruyens = await ChuongTruyen.findAll({
+            attributes: [],
+            where: { TID: truyen.TID },
+            include: {
+                model: ChuongDaMoKhoa,
+                attributes: ['Diem'],
+                required: true
+            }
+        });
+        let diem = 0;
+        chuongTruyens.forEach(item => {
+            item.ChuongDaMoKhoas.forEach(chuongDaMoKhoa => {
+                diem += chuongDaMoKhoa.Diem;
+            });
+        });
+        return {
+            ok: true,
+            data: { diem: diem }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tính số điểm cần để xóa truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function xoaTruyenDaDang(ndid, tid) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: {
+                NDID: ndid,
+                TID: tid
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu của người dùng'
+            };
+        }
+        if (truyen.DaDuyet == 0 || truyen.DaDuyet == -1) {
+            await truyen.destroy();
+            return { ok: true };
+        }
+        let fileHinhAnhs = [];
+        let fileAnhBia = truyen.AnhBia;
+        await database.transaction(async (transaction) => {
+            let nguoiDung = await NguoiDung.findOne({
+                where: { NDID: truyen.NDID }
+            }, { transaction: transaction });
+            let chuongTruyens = await ChuongTruyen.findAll({
+                where: { TID: truyen.TID },
+                include: { model: HinhAnh }
+            }, { transaction: transaction });
+            let ctids = [];
+            chuongTruyens.forEach(item => {
+                ctids.push(item.CTID);
+                item.HinhAnhs.forEach(hinhAnh => {
+                    fileHinhAnhs.push(hinhAnh.HinhAnh);
+                });
+            });
+            await YeuThich.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            await TheLoaiTruyen.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            await BinhLuan.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            await BaoCaoTruyen.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            await HinhAnh.destroy({
+                where: {
+                    CTID: { [Op.in]: ctids }
+                }
+            }, { transaction: transaction });
+            let chuongDaMoKhoas = await ChuongDaMoKhoa.findAll({
+                where: {
+                    CTID: { [Op.in]: ctids }
+                }
+            }, { transaction: transaction });
+            let lichSuDiems = [];
+            let today = new Date();
+            for (let index = 0; index < chuongDaMoKhoas.length; index++) {
+                lichSuDiems.push({
+                    NDID: chuongDaMoKhoas[index].NDID,
+                    LGDID: 3,
+                    DiemThayDoi: chuongDaMoKhoas[index].Diem,
+                    GhiChu: `Điểm hoàn từ việc xóa truyện ${truyen.TenTruyen}`,
+                    NgayDoi: today
+                });
+                await NguoiDung.increment({ Diem: chuongDaMoKhoas[index].Diem }, {
+                    where: { NDID: chuongDaMoKhoas[index].NDID },
+                    transaction: transaction
+                });
+                nguoiDung.Diem -= chuongDaMoKhoas[index].Diem;
+                if (nguoiDung.Diem < 0) {
+                    throw new Error('Không đủ điểm');
+                }
+            }
+            await LichSuDiem.bulkCreate(lichSuDiems, {
+                validate: true,
+                transaction: transaction
+            });
+            await nguoiDung.save({ transaction: transaction });
+            await ChuongDaMoKhoa.destroy({
+                where: {
+                    CTID: { [Op.in]: ctids }
+                }
+            }, { transaction: transaction });
+            await LichSuDoc.destroy({
+                where: {
+                    CTID: { [Op.in]: ctids }
+                }
+            }, { transaction: transaction });
+            await ChuongTruyen.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            await truyen.destroy({ transaction: transaction });
+        });
+        fileHinhAnhs.forEach(async (item) => {
+            try {
+                await fs.unlink(`./assets/images/${item}`);
+            } catch (error) {
+                logger.error('Lỗi khi xóa file hình ảnh', error);
+            }
+        });
+        if (fileAnhBia) {
+            try {
+                await fs.unlink(`./assets/covers/${fileAnhBia}`);
+            } catch (error) {
+                logger.error('Lỗi khi xóa file ảnh bìa', error);
+            }
+        }
+        return { ok: true };
+    } catch (error) {
+        if (error.message == 'Không đủ điểm') {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Không đủ điểm để xóa truyện'
+            };
+        }
+        logger.error('Lỗi khi xóa truyện đã đăng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function capNhatTruyen(tid, ndid, trangThai, theLoais) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: {
+                TID: tid,
+                NDID: ndid
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu của người dùng'
+            }
+        }
+        let countTheLoai = await TheLoai.count({
+            where: {
+                TLID: { [Op.in]: theLoais }
+            }
+        });
+        if (countTheLoai != theLoais.length) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Có thể loại không tồn tại'
+            };
+        }
+        truyen.TrangThai = trangThai;
+        await database.transaction(async (transaction) => {
+            await truyen.save({ transaction: transaction });
+            await TheLoaiTruyen.destroy({
+                where: { TID: truyen.TID }
+            }, { transaction: transaction });
+            let theLoaiTruyens = [];
+            theLoais.forEach(item => {
+                theLoaiTruyens.push({
+                    TID: truyen.TID,
+                    TLID: item
+                });
+            });
+            await TheLoaiTruyen.bulkCreate(theLoaiTruyens, {
+                validate: true,
+                transaction: transaction
+            });
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi cập nhật truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function themChuongTruyen(ndid, tid, tenChuongTruyen, giaChuong, fileHinhAnhs) {
+    try {
+        let truyen = await Truyen.findOne({
+            attributes: ['TID'],
+            where: {
+                TID: tid,
+                NDID: ndid
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu của người dùng'
+            };
+        }
+        await database.transaction(async (transaction) => {
+            let chuongTruyen = await ChuongTruyen.create({
+                TID: truyen.TID,
+                TenChuongTruyen: tenChuongTruyen,
+                GiaChuong: giaChuong
+            }, { transaction: transaction });
+            let hinhAnhs = [];
+            fileHinhAnhs.forEach(item => {
+                hinhAnhs.push({
+                    CTID: chuongTruyen.CTID,
+                    HinhAnh: item
+                });
+            });
+            await HinhAnh.bulkCreate(hinhAnhs, {
+                validate: true,
+                transaction: transaction
+            });
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi thêm chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function capNhatGiaChuongTruyen(ndid, ctid, giaChuong) {
+    try {
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: {
+                CTID: ctid
+            },
+            include: {
+                model: Truyen,
+                attributes: [],
+                where: { NDID: ndid }
+            }
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu của người dùng'
+            };
+        }
+        chuongTruyen.GiaChuong = giaChuong;
+        await chuongTruyen.save();
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi thêm chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function xoaChuongTruyen(ndid, ctid) {
+    try {
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: {
+                CTID: ctid
+            },
+            include: [{
+                model: Truyen,
+                attributes: [],
+                where: { NDID: ndid }
+            }, {
+                model: HinhAnh
+            }]
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu của người dùng'
+            };
+        }
+        await database.transaction(async (transaction) => {
+            let nguoiDung = await NguoiDung.findByPk(ndid);
+            await HinhAnh.destroy({
+                where: { CTID: chuongTruyen.CTID }
+            }, { transaction: transaction });
+            let chuongDaMoKhoas = await ChuongDaMoKhoa.findAll({
+                where: { CTID: chuongTruyen.CTID }
+            }, { transaction: transaction });
+            let lichSuDiems = [];
+            let today = new Date();
+            for (let index = 0; index < chuongDaMoKhoas.length; index++) {
+                lichSuDiems.push({
+                    NDID: chuongDaMoKhoas[index].NDID,
+                    LGDID: 3,
+                    DiemThayDoi: chuongDaMoKhoas[index].Diem,
+                    GhiChu: `Điểm hoàn từ việc xóa chương ${chuongTruyen.TenChuongTruyen}`,
+                    NgayDoi: today
+                });
+                await NguoiDung.increment({ Diem: chuongDaMoKhoas[index].Diem }, {
+                    where: { NDID: chuongDaMoKhoas[index].NDID },
+                    transaction: transaction
+                });
+                nguoiDung.Diem -= chuongDaMoKhoas[index].Diem;
+                if (nguoiDung.Diem < 0) {
+                    throw new Error('Không đủ điểm');
+                }
+            }
+            await LichSuDiem.bulkCreate(lichSuDiems, {
+                validate: true,
+                transaction: transaction
+            });
+            await nguoiDung.save({ transaction: transaction });
+            await ChuongDaMoKhoa.destroy({
+                where: { CTID: chuongTruyen.CTID }
+            }, { transaction: transaction });
+            await LichSuDoc.destroy({
+                where: { CTID: chuongTruyen.CTID }
+            }, { transaction: transaction });
+            await chuongTruyen.destroy({ transaction: transaction });
+        });
+        chuongTruyen.HinhAnhs.forEach(async (item) => {
+            try {
+                await fs.unlink(`./assets/images/${item.HinhAnh}`);
+            } catch (error) {
+                logger.error('Lỗi khi xóa file hình ảnh', error);
+            }
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi xóa chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
+    layDanhSachTheLoai,
     timTruyenMoi,
     timTruyenHot,
     timTruyenTheoTheLoai,
@@ -603,5 +1038,12 @@ module.exports = {
     timTruyenChuaDuyet,
     duyetTruyen,
     layThongTinTruyenAdmin,
-    layThongTinChuongTruyenAdmin
+    layThongTinChuongTruyenAdmin,
+    timTruyenDaDang,
+    tinhSoDiemCanDeXoaTruyen,
+    xoaTruyenDaDang,
+    capNhatTruyen,
+    themChuongTruyen,
+    capNhatGiaChuongTruyen,
+    xoaChuongTruyen
 };

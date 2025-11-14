@@ -1,5 +1,17 @@
 const truyenService = require('../services/truyen.service');
 
+async function theLoai(req, res) {
+    try {
+        let result = await truyenService.layDanhSachTheLoai();
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ theLoais: result.data.theLoais });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 async function truyenMoi(req, res) {
     let token = req.header('Authorization')?.split(' ')[1];
     let page = parseInt(req.query.page);
@@ -127,7 +139,7 @@ async function thongTinChuongTruyen(req, res) {
 }
 
 async function themTruyen(req, res) {
-    let { TenTruyen, MoTa, TacGia, GioiHan18Tuoi } = req.body;
+    let { TenTruyen, MoTa, TacGia, GioiHan18Tuoi, TLIDs } = req.body;
     TenTruyen = TenTruyen?.trim();
     if (!TenTruyen) {
         return res.status(400).json({ error: 'Thiếu thông tin' });
@@ -140,10 +152,31 @@ async function themTruyen(req, res) {
     if (!TacGia) {
         TacGia = null;
     }
-    GioiHan18Tuoi = GioiHan18Tuoi ? true : false;
+    GioiHan18Tuoi = GioiHan18Tuoi ? 1 : 0;
     let coverFileName = null;
     if (req.file) {
         coverFileName = req.file.filename;
+    }
+    let validTheLoai = true;
+    let theLoais = [];
+    if (TLIDs instanceof Array) {
+        for (let index = 0; index < TLIDs.length; index++) {
+            let tlid = parseInt(TLIDs[index]);
+            if (!tlid) {
+                validTheLoai = false;
+                break;
+            }
+            theLoais.push(tlid);
+        }
+    } else if (!TLIDs) {
+        let tlid = parseInt(TLIDs);
+        if (!tlid) {
+            validTheLoai = false;
+        }
+        theLoais.push(tlid);
+    }
+    if (!validTheLoai) {
+        return res.status(400).json({ error: 'Có thể loại không đúng định dạng' });
     }
     if (TenTruyen.length > 200) {
         return res.status(400).json({ error: 'Tên truyện vượt quá 200 ký tự' });
@@ -155,7 +188,7 @@ async function themTruyen(req, res) {
         return res.status(400).json({ error: 'Tên tác giả vượt quá 100 ký tự' });
     }
     try {
-        let result = await truyenService.themTruyen(req.authorization.NDID, TenTruyen, MoTa, coverFileName, TacGia, GioiHan18Tuoi);
+        let result = await truyenService.themTruyen(req.authorization.NDID, TenTruyen, MoTa, coverFileName, TacGia, GioiHan18Tuoi, theLoais);
         if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
         }
@@ -231,7 +264,126 @@ async function thongTinChuongTruyenAdmin(req, res) {
     }
 }
 
+async function xoaTruyenDaDang(req, res) {
+    let TID = parseInt(req.body.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.xoaTruyenDaDang(req.authorization.NDID, TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Đã xóa truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function capNhatTruyen(req, res) {
+    let { TID, TrangThai, TLIDs } = req.body;
+    TID = parseInt(TID);
+    TrangThai = parseInt(TrangThai);
+    if (!TID || !TrangThai) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    let theLoais = [];
+    let validTheLoai = true;
+    if (TLIDs instanceof Array) {
+        for (let index = 0; index < TLIDs.length; index++) {
+            let tlid = parseInt(TLIDs[index]);
+            if (!tlid) {
+                validTheLoai = false;
+                break;
+            }
+            theLoais.push(tlid);
+        }
+    } else if (TLIDs) {
+        let tlid = parseInt(TLIDs);
+        if (!tlid) {
+            validTheLoai = false;
+        }
+        theLoais.push(tlid);
+    }
+    if (!validTheLoai) {
+        return res.status(400).json({ error: 'Có thể loại không đúng định dạng' });
+    }
+    try {
+        let result = await truyenService.capNhatTruyen(TID, req.authorization.NDID, TrangThai, theLoais);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Cập nhật truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function themChuongTruyen(req, res) {
+    let { TID, TenChuongTruyen, GiaChuong } = req.body;
+    TID = parseInt(TID);
+    TenChuongTruyen = TenChuongTruyen?.trim();
+    GiaChuong = parseInt(GiaChuong);
+    if (!TID || !TenChuongTruyen || !GiaChuong || req.files.length < 0) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    if (TenChuongTruyen.length > 200) {
+        return res.status(400).json({ error: 'Tên chương truyện vượt quá 200 ký tự' });
+    }
+    if (GiaChuong < 0) {
+        return res.status(400).json({ error: 'Giá chương truyện không hợp lệ' });
+    }
+    let fileNames = req.files.map(item => item.filename);
+    try {
+        let result = await truyenService.themChuongTruyen(req.authorization.NDID, TID, TenChuongTruyen, GiaChuong, fileNames);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Thêm chương truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function capNhatGiaChuongTruyen(req, res) {
+    let { CTID, GiaChuong } = req.body;
+    CTID = parseInt(CTID);
+    GiaChuong = parseInt(GiaChuong);
+    if (!CTID || !GiaChuong) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    if (GiaChuong < 0) {
+        return res.status(400).json({ error: 'Giá chương truyện không hợp lệ' });
+    }
+    try {
+        let result = await truyenService.capNhatGiaChuongTruyen(req.authorization.NDID, CTID, GiaChuong);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Cập nhật giá chương truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function xoaChuongTruyen(req, res) {
+    let CTID = parseInt(req.body.CTID);
+    if (!CTID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.xoaChuongTruyen(req.authorization.NDID, CTID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Xóa chương truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
+    theLoai,
     truyenMoi,
     truyenHot,
     truyenTheoTheLoai,
@@ -242,5 +394,10 @@ module.exports = {
     truyenChuaDuyet,
     duyetTruyen,
     thongTinTruyenAdmin,
-    thongTinChuongTruyenAdmin
+    thongTinChuongTruyenAdmin,
+    xoaTruyenDaDang,
+    capNhatTruyen,
+    themChuongTruyen,
+    capNhatGiaChuongTruyen,
+    xoaChuongTruyen
 };

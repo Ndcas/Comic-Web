@@ -1,10 +1,13 @@
-const { uploadAnhBia } = require('../middlewares/uploadimage.middleware');
+const { uploadAnhBia, uploadHinhAnh } = require('../middlewares/uploadimage.middleware');
 const adminFilter = require('../middlewares/adminfilter.middleware');
 const controller = require('../controllers/truyen.controller');
 const express = require('express');
 const nguoiDungFilter = require('../middlewares/nguoidungfiler.middleware');
 
 const router = express.Router();
+
+// => theLoais (mảng TheLoai)
+router.get('/theLoai', controller.theLoai);
 
 // Cần page (số thứ tự trang bắt đầu từ 1) trong query, có thể kèm theo access token của NguoiDung trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi
 // => truyens (mảng Truyen), trangHienTai (số thứ tự trang hiện tại), trangToiDa (số thứ tự trang cuối)
@@ -30,7 +33,7 @@ router.get('/thongTinTruyen', controller.thongTinTruyen);
 // => chuongTruyen (ChuongTruyen có join với HinhAnh)
 router.get('/thongTinChuongTruyen', controller.thongTinChuongTruyen);
 
-// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TenTruyen, GioiHan18Tuoi, có thể truyền thêm MoTa, AnhBia (file ảnh bìa phù hợp với filter phía trong middleware), TacGia
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TenTruyen, GioiHan18Tuoi, có thể truyền thêm MoTa, AnhBia (file ảnh bìa phù hợp với filter phía trong middleware), TacGia, TLIDs (TLID hoặc mảng TLID)
 router.post('/themTruyen', nguoiDungFilter.verifyAccessToken, uploadAnhBia, controller.themTruyen);
 
 // Cần access token của Admin trong header Authorization dạng 'Bearer [access token]'
@@ -47,5 +50,20 @@ router.get('/thongTinTruyenAdmin', adminFilter.verifyAccessToken, controller.tho
 // Cần access token của Admin trong header Authorization dạng 'Bearer [access token]', CTID
 // => chuongTruyen (ChuongTruyen có join với HinhAnh)
 router.get('/thongTinChuongTruyenAdmin', adminFilter.verifyAccessToken, controller.thongTinChuongTruyenAdmin);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID
+router.post('/xoaTruyenDaDang', nguoiDungFilter.verifyAccessToken, controller.xoaTruyenDaDang);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TrangThai, TLIDs (TLID hoặc mảng TLID)
+router.post('/capNhatTruyen', nguoiDungFilter.verifyAccessToken, controller.capNhatTruyen);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID, TenChuongTruyen, GiaChuong, HinhAnh (mảng file hình ảnh phù hợp với filter phía trong middleware)
+router.post('/themChuongTruyen', nguoiDungFilter.verifyAccessToken, uploadHinhAnh, controller.themChuongTruyen);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID, GiaChuong
+router.post('/capNhatGiaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.capNhatGiaChuongTruyen);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID
+router.post('/xoaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.xoaChuongTruyen);
 
 module.exports = router;

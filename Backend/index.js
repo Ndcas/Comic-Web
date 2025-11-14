@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const { declareAssociation } = require('./database/association');
 const adminRouter = require('./routers/admin.router');
 const baoCaoRouter = require('./routers/baocao.router');

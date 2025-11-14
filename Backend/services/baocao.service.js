@@ -1,20 +1,23 @@
+const { Op } = require('sequelize');
 const { deleteFromCachePrefix } = require('../services/cache.service');
-const BaocaoBinhLuan = require('../models/baocaobinhluan.model');
+const BaoCaoBinhLuan = require('../models/baocaobinhluan.model');
 const BaoCaoTruyen = require('../models/baocaotruyen.model');
 const BinhLuan = require('../models/binhluan.model');
 const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
+const fs = require('fs/promises');
 const HinhAnh = require('../models/hinhanh.model');
 const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
 const NguoiDung = require('../models/nguoidung.model');
+const TheLoaiTruyen = require('../models/theloaitruyen.model');
 const Truyen = require('../models/truyen.model');
 const YeuThich = require('../models/yeuthich.model');
 
 async function timBaoCaoBinhLuanChuaXuLy() {
     try {
-        let result = await BaocaoBinhLuan.findAll({
+        let result = await BaoCaoBinhLuan.findAll({
             where: { DaXuyLy: 0 },
             include: { model: BinhLuan }
         });
@@ -45,7 +48,7 @@ async function timBaoCaoTruyenChuaXuLy() {
 
 async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
     try {
-        let baoCao = await BaocaoBinhLuan.findOne({
+        let baoCao = await BaoCaoBinhLuan.findOne({
             where: {
                 BCBLID: bcblid,
                 DaXuyLy: 0
@@ -59,34 +62,31 @@ async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
             };
         }
         await database.transaction(async (transaction) => {
-            switch (mode) {
-                case 0:
-                    baoCao.DaXuLy = 1;
-                    await baoCao.save({ transaction: transaction });
-                    break;
-                case 1:
-                    await baoCao.destroy({ transaction: transaction });
-                    await BinhLuan.destroy({
-                        where: { BLID: baoCao.BLID }
-                    }, { transaction: transaction });
-                    break;
-                case 2:
-                    await baoCao.destroy({ transaction: transaction });
-                    await BinhLuan.destroy({
-                        where: { BLID: baoCao.BLID }
-                    }, { transaction: transaction });
-                    let nguoiDung = await NguoiDung.findOne({
-                        where: {
-                            NDID: baoCao.NDID,
-                            TrangThai: 1
-                        }
-                    }, { transaction: transaction });
-                    if (nguoiDung) {
-                        deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
-                        nguoiDung.TrangThai = 0;
-                        await nguoiDung.save({ transaction: transaction });
+            if (mode == 0) {
+                baoCao.DaXuLy = 1;
+                await baoCao.save({ transaction: transaction });
+                return;
+            }
+            if (mode == 1 || mode == 2) {
+                await BaoCaoBinhLuan.destroy({
+                    where: { BLID: baoCao.BLID }
+                }, { transaction: transaction });
+                await BinhLuan.destroy({
+                    where: { BLID: baoCao.BLID }
+                }, { transaction: transaction });
+            }
+            if (mode == 2) {
+                let nguoiDung = await NguoiDung.findOne({
+                    where: {
+                        NDID: baoCao.NDID,
+                        TrangThai: 1
                     }
-                    break;
+                }, { transaction: transaction });
+                if (nguoiDung) {
+                    deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+                    nguoiDung.TrangThai = 0;
+                    await nguoiDung.save({ transaction: transaction });
+                }
             }
         });
         return { ok: true };
@@ -96,7 +96,7 @@ async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
     }
 }
 
-async function xuLyBaoCaoTruyen(bctid, LyDoTuChoi = null, mode = 0) {
+async function xuLyBaoCaoTruyen(bctid, mode = 0) {
     try {
         let baoCao = await BaoCaoTruyen.findOne({
             where: {
@@ -112,19 +112,93 @@ async function xuLyBaoCaoTruyen(bctid, LyDoTuChoi = null, mode = 0) {
             };
         }
         let truyen = await Truyen.findOne({
-            where: { TID: baoCao.TID },
-            include: [
-                { model: ChuongTruyen },
-                { model: NguoiDung }
-            ]
+            where: { TID: baoCao.TID }
         });
         if (!truyen) {
             return { ok: true };
         }
-        let ctids = truyen.ChuongTruyens.map(item => item.CTID);
+        let fileHinhAnhs = [];
+        let fileAnhBia = truyen.AnhBia;
         await database.transaction(async (transaction) => {
-            // Đang viết
+            if (mode == 0) {
+                baoCao.DaXuLy = 1;
+                await baoCao.save({ transaction: transaction });
+                return;
+            }
+            if (mode == 1 || mode == 2) {
+                let chuongTruyens = await ChuongTruyen.findAll({
+                    where: { TID: truyen.TID },
+                    include: { model: HinhAnh }
+                }, { transaction: transaction });
+                let ctids = [];
+                chuongTruyens.forEach(item => {
+                    ctids.push(item.CTID);
+                    item.HinhAnhs.forEach(hinhAnh => {
+                        fileHinhAnhs.push(hinhAnh.HinhAnh);
+                    });
+                });
+                await YeuThich.destroy({
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                await TheLoaiTruyen.destroy({
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                await BinhLuan.destroy({
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                await BaoCaoTruyen.destroy({
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                await HinhAnh.destroy({
+                    where: {
+                        CTID: { [Op.in]: ctids }
+                    }
+                }, { transaction: transaction });
+                await ChuongDaMoKhoa.destroy({
+                    where: {
+                        CTID: { [Op.in]: ctids }
+                    }
+                }, { transaction: transaction });
+                await LichSuDoc.destroy({
+                    where: {
+                        CTID: { [Op.in]: ctids }
+                    }
+                }, { transaction: transaction });
+                await ChuongTruyen.destroy({
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                await truyen.destroy({ transaction: transaction });
+            }
+            if (mode == 2) {
+                let nguoiDung = await NguoiDung.findOne({
+                    where: {
+                        NDID: truyen.NDID,
+                        TrangThai: 1
+                    }
+                }, { transaction: transaction });
+                if (nguoiDung) {
+                    deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+                    nguoiDung.TrangThai = 0;
+                    await nguoiDung.save({ transaction: transaction });
+                }
+            }
         });
+        if (mode == 1 || mode == 2) {
+            fileHinhAnhs.forEach(async (item) => {
+                try {
+                    await fs.unlink(`./assets/images/${item}`);
+                } catch (error) {
+                    logger.error('Lỗi khi xóa file hình ảnh', error);
+                }
+            });
+            if (fileAnhBia) {
+                try {
+                    await fs.unlink(`./assets/covers/${fileAnhBia}`);
+                } catch (error) {
+                    logger.error('Lỗi khi xóa file ảnh bìa', error);
+                }
+            }
+        }
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi tìm báo cáo truyện', error);
@@ -132,4 +206,4 @@ async function xuLyBaoCaoTruyen(bctid, LyDoTuChoi = null, mode = 0) {
     }
 }
 
-module.exports = { timBaoCaoBinhLuanChuaXuLy, timBaoCaoTruyenChuaXuLy };
+module.exports = { timBaoCaoBinhLuanChuaXuLy, timBaoCaoTruyenChuaXuLy, xuLyBaoCaoBinhLuan, xuLyBaoCaoTruyen };
