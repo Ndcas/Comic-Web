@@ -96,7 +96,9 @@ async function doiMatKhau(req, res) {
         }
         let cookieOptions = {
             httpOnly: true,
-            signed: true
+            signed: true,
+            secure: true,
+            sameSite: 'None'
         };
         res.cookie('refreshToken', result.data.refreshToken, cookieOptions);
         return res.json({ message: 'Đổi mật khẩu thành công' });

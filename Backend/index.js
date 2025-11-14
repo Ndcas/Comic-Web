@@ -16,6 +16,7 @@ declareAssociation();
 
 const PORT = process.env.PORT;
 const COOKIE_SECRET = process.env.COOKIE_SECRET;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const app = express();
 
@@ -40,7 +41,10 @@ const slower = expressSlowDown({
 
 app.use(slower);
 
-app.use(cors());
+app.use(cors({
+    origin: [FRONTEND_URL, 'http://127.0.0.1:5500'],
+    credentials: true
+}));
 
 app.use('/admin', adminRouter);
 

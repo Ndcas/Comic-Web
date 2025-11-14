@@ -67,7 +67,9 @@ async function dangNhap(req, res) {
         }
         let cookieOptions = {
             httpOnly: true,
-            signed: true
+            signed: true,
+            secure: true,
+            sameSite: 'None'
         };
         if (ghiNho) {
             cookieOptions.maxAge = COOKIE_MAX_AGE_MS;
@@ -155,7 +157,9 @@ async function doiMatKhau(req, res) {
         }
         let cookieOptions = {
             httpOnly: true,
-            signed: true
+            signed: true,
+            secure: true,
+            sameSite: 'None'
         };
         if (req.signedCookies.ghiNho == '1') {
             cookieOptions.maxAge = COOKIE_MAX_AGE_MS;
