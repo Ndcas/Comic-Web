@@ -26,7 +26,7 @@ router.get('/truyenTheoTheLoai', controller.truyenTheoTheLoai);
 router.get('/truyenTheoTuKhoa', controller.truyenTheoTuKhoa);
 
 // Cần TID trong query, có thể kèm theo access token của NguoiDung trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi và các chương truyện đã mở khóa
-// => truyen (Truyen), chuongTruyens (mảng ChuongTruyen có join với ChuongDaMoKhoa nếu truyền token, nếu GiaChuong = 0 hoặc mảng ChuongDaMoKhoas khác undefined và không rỗng thì là có thể xem)
+// => truyen (Truyen có join với NguoiDung để lấy TenTaiKhoan, BinhLuan đã join với NguoiDung để lấy bình luận chưa được sắp xếp), chuongTruyens (mảng ChuongTruyen có join với ChuongDaMoKhoa nếu truyền token, nếu GiaChuong = 0 hoặc mảng ChuongDaMoKhoas khác undefined và không rỗng thì là có thể xem)
 router.get('/thongTinTruyen', controller.thongTinTruyen);
 
 // Cần CTID trong query, có thể kèm theo access token của NguoiDung trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi và các chương truyện tính phí đã mở khóa
@@ -65,5 +65,15 @@ router.post('/capNhatGiaChuongTruyen', nguoiDungFilter.verifyAccessToken, contro
 
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID
 router.post('/xoaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.xoaChuongTruyen);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID
+router.post('/moKhoaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.moKhoaChuongTruyen);
+
+// Cần TID trong query
+router.get('/tomTatTruyen', controller.tomTatTruyen);
+
+// Cần question (câu mô tả truyện cần tìm) trong query
+// => result (văn bản mô tả kết quả tìm được trong cơ sở dữ liệu)
+router.get('/timTruyenBangAI', controller.timTruyenBangAI);
 
 module.exports = router;

@@ -41,4 +41,21 @@ router.get('/tatCaNguoiDung', adminFilter.verifyAccessToken, controller.tatCaNgu
 // Yêu cầu access token của Admin trong header Authorization, NDID, Diem, TrangThai trong body
 router.post('/capNhatNguoiDung', adminFilter.verifyAccessToken, controller.capNhatNguoiDung);
 
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]'
+// => nguoiDung (NguoiDung)
+router.get('/thongTinTaiKhoan', nguoiDungFilter.verifyAccessToken, controller.thongTinTaiKhoan);
+
+// Yêu cầu access token của Admin trong header Authorization, TenTaiKhoan trong body
+// => refreshToken (trong cookie), refeshToken (trong cookie), ghiNho (trong cookie nếu người dùng chọn ghi nhớ đăng nhập trước đó)
+router.post('/doiTenTaiKhoan', nguoiDungFilter.verifyAccessToken, controller.doiTenTaiKhoan);
+
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', diem (số điểm cần nạp)
+// => url (url tới trang thanh toán)
+router.get('/napDiem', nguoiDungFilter.verifyAccessToken, controller.napDiem);
+
+router.get('/xuLyKetQuaNapDiem/:NDID', controller.xuLyKetQuaNapDiem);
+
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', diem (số điểm cần rút)
+router.post('/rutDiem', nguoiDungFilter.verifyAccessToken, controller.rutDiem);
+
 module.exports = router;

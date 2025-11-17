@@ -1,5 +1,6 @@
-const { Op, QueryTypes, where } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const { getFromCache, saveToCache } = require('./cache.service');
+const { askGemini } = require('../utils/googleapi');
 const { verifyToken } = require('../utils/token');
 const BaoCaoTruyen = require('../models/baocaotruyen.model');
 const BinhLuan = require('../models/binhluan.model');
@@ -20,10 +21,64 @@ const YeuThich = require('../models/yeuthich.model');
 const HOT_COMICS = parseInt(process.env.HOT_COMICS);
 const COMICS_PER_PAGE = parseInt(process.env.COMICS_PER_PAGE);
 const CACHE_NUM_COMICS_TTL_SECONDS = parseInt(process.env.CACHE_NUM_COMICS_TTL_SECONDS);
+const GOOGLE_API_RESULT_CACHE_TTL_SECONDS = parseInt(process.env.GOOGLE_API_RESULT_CACHE_TTL_SECONDS);
+
+const comicFindingContext = `
+    Bạn sẽ chatbot hỗ trợ việc tìm kiếm truyện trong cơ sở dữ liệu.
+    Khi người dùng gửi yêu cầu tìm truyện, hệ thống sẽ chuyển tới bạn và bạn sẽ tạo ra câu truy vấn SQL Select để tìm thông tin truyện, trả lời "Không thể tạo truy vấn." nếu bạn không thể tạo được câu truy vấn phù hợp khi được yêu cầu hoặc yêu cầu vi phạm các nguyên tắc được liệt ra ở đây.
+    Khi trả lời SQL, đảm bảo là câu trả lời có thể được thực thi SQL ngay mà không có các ký tự không cần thiết.
+    Sau đó hệ thống sẽ chuyển dữ liệu tìm được và bạn sẽ chuyển nó thành văn bản không định dạng để hệ thống chuyển tới người dùng.
+    Chỉ tạo các câu lệnh select, không tạo các câu lệnh khác. Chỉ tìm các truyện đã được duyệt và có ít nhất 1 chương truyện, không tìm kiếm dựa trên thông tin nhạy cảm hoặc không quan trọng với người đọc ví dụ như các ID, lý do từ chối truyện hay các yêu cầu liên quan tới tài khoản người dùng
+    Nếu truyện có giới hạn độ tuổi, hãy báo với người dùng là họ sẽ cần phải đăng nhập với tài khoản có độ tuổi phù hợp để tìm được truyện đó.
+    
+    Cở sở dự liệu mà bạn tạo câu truy vấn là cơ sở dữ liệu MySQL với cấu trúc các bảng có thể truy vấn như sau:
+    CREATE TABLE truyen (
+        TID int(11) NOT NULL, (đây là ID truyện)
+        NDID int(11) NOT NULL, (khóa ngoại ID người đăng)
+        TenTruyen varchar(200) NOT NULL, (tên truyện)
+        MoTa varchar(1000) DEFAULT NULL, (mô tả truyện)
+        AnhBia varchar(100) DEFAULT NULL, (tên file ảnh bìa)
+        TacGia varchar(100) DEFAULT NULL, (tên tác giả)
+        LuotThich int(11) NOT NULL DEFAULT 0 CHECK (LuotThich >= 0), (lượt thích)
+        DaDuyet int(11) NOT NULL DEFAULT 0 CHECK (DaDuyet in (-1,0,1)), (tình trạng đã duyệt của truyện, 1 là đã duyệt)
+        LyDoTuChoi varchar(500) DEFAULT NULL, (lý do từ chối truyện)
+        TrangThai int(11) NOT NULL DEFAULT 1 CHECK (TrangThai in (0,1)), (trạng thái hiện tại của truyện 0 là đã kết thúc, 1 là còn tiếp)
+        GioiHan18Tuoi int(11) NOT NULL DEFAULT 0 CHECK (GioiHan18Tuoi in (0,1)) (giới hạn độ tuổi, 0 là không giới hạn, 1 là có yêu cầu 18 tuổi)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+    CREATE TABLE chuongtruyen (
+        CTID int(11) NOT NULL, (ID chương truyện)
+        TID int(11) NOT NULL, (khóa ngoại ID truyện)
+        TenChuongTruyen varchar(200) NOT NULL, (tên chương truyện)
+        LuotXem int(11) NOT NULL DEFAULT 0 CHECK (LuotXem >= 0), (lượt xem)
+        NgayDang datetime NOT NULL, (ngày đăng)
+        GiaChuong int(11) NOT NULL DEFAULT 0 CHECK (GiaChuong >= 0) (giá để mở khóa chương)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+    CREATE TABLE theloaitruyen (
+        TLID int(11) NOT NULL, (ID thể loại)
+        TID int(11) NOT NULL (ID truyện)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+`;
+
+const comicSummaryContext = `
+    Bạn là 1 chatbot chuyên trả lời vấn đề yêu cầu tóm tắt nội dung truyện tranh.
+    Hãy trả lời bằng văn bản không định dạng ngắn gọn trong vòng 500 chữ.
+    Nếu bạn tìm thấy nhiều truyện khớp hãy cung cấp tóm tắt ngắn gọn của tất cả.
+    Hãy từ chối các câu hỏi không liên quan và hãy cảnh báo người dùng nếu truyện đó có các thể không phù hợp với một số người về vấn đề nội dung nhạy cảm hoặc chính trị
+`;
 
 async function layDanhSachTheLoai() {
     try {
+        let cached = getFromCache('TheLoai');
+        if (cached) {
+            return {
+                ok: true,
+                data: { theLoais: cached }
+            };
+        }
         let result = await TheLoai.findAll();
+        saveToCache('TheLoai', result, 600);
         return {
             ok: true,
             data: { theLoais: result }
@@ -376,6 +431,12 @@ async function layThongTinTruyen(tid, token = null) {
                 model: ChuongTruyen,
                 attributes: [],
                 required: true
+            }, {
+                model: BinhLuan,
+                include: {
+                    model: NguoiDung,
+                    attributes: ['TenTaiKhoan']
+                }
             }]
         });
         if (!truyen) {
@@ -1026,6 +1087,143 @@ async function xoaChuongTruyen(ndid, ctid) {
     }
 }
 
+async function moKhoaChuongTruyen(ndid, ctid) {
+    try {
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: { CTID: ctid },
+            include: {
+                model: Truyen,
+                attributes: ['NDID']
+            }
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu'
+            };
+        }
+        let reader = await NguoiDung.findOne({
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!reader) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Người dùng không có quyền mở khóa chương truyện'
+            };
+        }
+        if (reader.Diem < chuongTruyen.GiaChuong) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Người dùng không có quyền đủ diểm để mở khóa chương'
+            };
+        }
+        await database.transaction(async (transaction) => {
+            await NguoiDung.decrement({ Diem: chuongTruyen.GiaChuong }, {
+                where: { NDID: reader.NDID },
+                transaction: transaction
+            });
+            await NguoiDung.increment({
+                Diem: chuongTruyen.GiaChuong * 0.9
+            }, {
+                where: { NDID: chuongTruyen.Truyen.NDID },
+                transaction: transaction
+            });
+            await LichSuDiem.bulkCreate([{
+                NDID: reader.NDID,
+                LGDID: 2,
+                DiemThayDoi: chuongTruyen.GiaChuong,
+                GhiChu: `Mở khóa chương ${chuongTruyen.TenChuongTruyen}`
+            }, {
+                NDID: chuongTruyen.Truyen.NDID,
+                LGDID: 1,
+                DiemThayDoi: chuongTruyen.GiaChuong * 0.9,
+                GhiChu: `Điểm người đọc mở khóa chương ${chuongTruyen.TenChuongTruyen}`
+            }], {
+                validate: true,
+                transaction: transaction
+            });
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi mở khóa chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layTomTatTruyen(tid) {
+    try {
+        let cached = getFromCache(`Summary:${tid}`);
+        if (cached) {
+            return {
+                ok: true,
+                data: { summary: cached }
+            };
+        }
+        let truyen = await Truyen.findByPk(tid);
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            }
+        }
+        let question = `Hãy tóm tắt truyện ${truyen.TenTruyen} của tác giả ${truyen.TacGia ? truyen.TacGia : 'chưa biết'}`;
+        let response = await askGemini(comicSummaryContext, question);
+        if (!response) {
+            response = 'Tôi không tìm thấy thông tin về truyện này';
+        }
+        saveToCache(`Summary:${tid}`, response, GOOGLE_API_RESULT_CACHE_TTL_SECONDS);
+        return {
+            ok: true,
+            data: { summary: response }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy tóm tắt truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function timTruyenBangAI(question) {
+    try {
+        let theLoais = getFromCache('TheLoai');
+        if (!theLoais) {
+            theLoais = await TheLoai.findAll();
+            saveToCache('TheLoai', theLoais, 600);
+        }
+        let askContext = comicFindingContext + `\nĐây là dữ liệu về thể loại: ${JSON.stringify(theLoais)}`;
+        let sql = await askGemini(askContext, `Hãy tạo câu SQL truy vấn cho yêu cầu: ${question}`);
+        let lowerSQL = sql.toLowerCase();
+        if (lowerSQL.includes('update') || lowerSQL.includes('delete') || !lowerSQL.includes('select')) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Không thể tìm truyện được yêu cầu'
+            };
+        }
+        let data = await database.query(sql, { type: QueryTypes.SELECT });
+        if (data.length == 0) {
+            return {
+                ok: true,
+                data: { result: 'Không tìm được truyện nào khớp với yêu cầu' }
+            };
+        }
+        let result = await askGemini(comicFindingContext, `Đây là dữ liệu về truyện được trả về bởi câu lệnh SQL: ${JSON.stringify(data)}`);
+        return {
+            ok: true,
+            data: { result: result }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tìm truyện bằng AI', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
     layDanhSachTheLoai,
     timTruyenMoi,
@@ -1045,5 +1243,8 @@ module.exports = {
     capNhatTruyen,
     themChuongTruyen,
     capNhatGiaChuongTruyen,
-    xoaChuongTruyen
+    xoaChuongTruyen,
+    moKhoaChuongTruyen,
+    layTomTatTruyen,
+    timTruyenBangAI
 };

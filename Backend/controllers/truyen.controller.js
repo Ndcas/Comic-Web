@@ -382,6 +382,54 @@ async function xoaChuongTruyen(req, res) {
     }
 }
 
+async function moKhoaChuongTruyen(req, res) {
+    let CTID = parseInt(req.body.CTID);
+    if (!CTID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.moKhoaChuongTruyen(req.authorization.NDID, CTID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Mở khóa chương truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function tomTatTruyen(req, res) {
+    let TID = parseInt(req.query.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.layTomTatTruyen(TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ summary: result.data.summary });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function timTruyenBangAI(req, res) {
+    let question = req.query.question?.trim();
+    if (!question) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.timTruyenBangAI(question);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ result: result.data.result });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
     theLoai,
     truyenMoi,
@@ -399,5 +447,8 @@ module.exports = {
     capNhatTruyen,
     themChuongTruyen,
     capNhatGiaChuongTruyen,
-    xoaChuongTruyen
+    xoaChuongTruyen,
+    moKhoaChuongTruyen,
+    tomTatTruyen,
+    timTruyenBangAI
 };

@@ -25,7 +25,10 @@ function getURL(amount, returnPath) {
     url.searchParams.set('url_return', url_return);
     url.searchParams.set('website_id', VTC_PAY_WEBSITE_ID);
     url.searchParams.set('signature', signature);
-    return url.toString();
+    return {
+        url: url.toString(),
+        transID: reference_number
+    };
 }
 
 function verify(query) {

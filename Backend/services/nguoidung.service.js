@@ -2,13 +2,17 @@ const { Op } = require('sequelize');
 const { deleteFromCache, deleteFromCachePrefix, getFromCache, saveToCache } = require('./cache.service');
 const { compare, hash } = require('../utils/hashing');
 const { sendEmail } = require('../utils/mail');
+const { getURL, verify } = require('../utils/payment');
 const { signToken, verifyToken } = require('../utils/token');
 const Admin = require('../models/admin.model');
+const database = require('../database/database');
+const LichSuDiem = require('../models/lichsudiem.model');
 const logger = require('../utils/logger');
 const NguoiDung = require('../models/nguoidung.model');
 
 const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
 const CACHE_OTP_TTL_SECONDS = parseInt(process.env.CACHE_OTP_TTL_SECONDS);
+const BASE_URL = process.env.BASE_URL;
 
 async function guiOTPDangKy(email) {
     try {
@@ -340,6 +344,177 @@ async function capNhatNguoiDung(ndid, trangThai, diem = null) {
     }
 }
 
+async function layThongTinNguoiDung(ndid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: {
+                exclude: ['TrangThai', 'MatKhau', 'NDID']
+            },
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Người dùng không tồn tại hoặc đã bị chặn'
+            };
+        }
+        return {
+            ok: true,
+            data: { nguoiDung: nguoiDung }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function doiTenTaiKhoan(ndid, tenTaiKhoan) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        nguoiDung.TenTaiKhoan = tenTaiKhoan;
+        await nguoiDung.save();
+        deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
+        let payload = {
+            NDID: nguoiDung.NDID,
+            TenTaiKhoan: nguoiDung.TenTaiKhoan,
+            Email: nguoiDung.Email,
+            NgayThamGia: nguoiDung.NgayThamGia,
+            NamSinh: nguoiDung.NamSinh,
+            isUser: true
+        };
+        let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
+        let accessToken = signToken(payload);
+        let refreshToken = signToken(payload, true);
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
+        return {
+            ok: true,
+            data: {
+                accessToken: accessToken,
+                hanDung: hanDung,
+                refreshToken: refreshToken
+            }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi đổi tên tài khoản người dùng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function napDiem(ndid, diem) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let returnPath = BASE_URL + `/xuLyKetQuaNapDiem/${nguoiDung.NDID}`;
+        let url = getURL(diem * 1000, returnPath);
+        logger.info(`Đã tạo URL nạp điểm ${url.transID}: ${url.url}`);
+        saveToCache(`TransactionID:${url.transID}`, '1');
+        return {
+            ok: true,
+            data: { url: url.url }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tạo URL nạp điểm', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function xuLyKetQuaNapDiem(ndid, requestQuery) {
+    let status = verify(requestQuery);
+    if (!status.ok) {
+        return {
+            ok: false,
+            status: 400,
+            error: `${status.error}\nMã giao dịch: ${status.transID}`
+        }
+    }
+    if (getFromCache(`TransactionID:${status.transID}`) != '1') {
+        return {
+            ok: false,
+            status: 400,
+            error: `Giao dịch đã được xử lý trước đó\nMã giao dịch: ${status.transID}`
+        }
+    } else {
+        deleteFromCache(`TransactionID:${status.transID}`);
+    }
+    try {
+        let diem = requestQuery.amount / 1000;
+        await database.transaction(async (transaction) => {
+            await NguoiDung.increment({ Diem: diem }, {
+                where: { NDID: ndid },
+                transaction: transaction
+            });
+            await LichSuDiem.create({
+                NDID: ndid,
+                LGDID: 1,
+                DiemThayDoi: diem,
+                GhiChu: `Nạp điểm mã giao dịch ${status.transID}`
+            }, { transaction: transaction });
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi xử lý kết quả nạp điểm', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function rutDiem(ndid, diem) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        if (nguoiDung.Diem < diem) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Người dùng không có đủ điểm để rút'
+            };
+        }
+        throw new Error('Tính năng chưa được triển khai');
+    } catch (error) {
+        logger.error('Lỗi khi rút điểm', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
     guiOTPDangKy,
     dangKy,
@@ -350,5 +525,10 @@ module.exports = {
     doiMatKhau,
     dangXuat,
     timTatCaNguoiDung,
-    capNhatNguoiDung
+    capNhatNguoiDung,
+    layThongTinNguoiDung,
+    doiTenTaiKhoan,
+    napDiem,
+    xuLyKetQuaNapDiem,
+    rutDiem
 };

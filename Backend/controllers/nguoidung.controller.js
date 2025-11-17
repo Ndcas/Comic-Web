@@ -227,6 +227,96 @@ async function capNhatNguoiDung(req, res) {
     }
 }
 
+async function thongTinTaiKhoan(req, res) {
+    try {
+        let result = await nguoiDungService.layThongTinNguoiDung(req.authorization.NDID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ nguoiDung: result.data.nguoiDung });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function doiTenTaiKhoan(req, res) {
+    let TenTaiKhoan = req.body.TenTaiKhoan?.trim();
+    if (!TenTaiKhoan || TenTaiKhoan.length > 50 || TenTaiKhoan.length < 3) {
+        return res.status(400).json({ error: 'Thiếu tên tài khoản hoặc tên tài khoản không đúng định dạng' });
+    }
+    try {
+        let result = await nguoiDungService.doiTenTaiKhoan(req.authorization.NDID, TenTaiKhoan);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        let cookieOptions = {
+            httpOnly: true,
+            signed: true,
+            secure: true,
+            sameSite: 'None'
+        };
+        if (req.signedCookies.ghiNho == '1') {
+            cookieOptions.maxAge = COOKIE_MAX_AGE_MS;
+            res.cookie('ghiNho', '1', cookieOptions);
+        }
+        res.cookie('refreshToken', result.data.refreshToken, cookieOptions);
+        return res.json({
+            token: result.data.accessToken,
+            hanDung: result.data.hanDung
+        });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function napDiem(req, res) {
+    let diem = parseInt(req.query.diem);
+    if (!diem || diem < 10) {
+        return res.status(400).json({ error: 'Thiếu điểm hoặc điểm nạp ít hơn 10' });
+    }
+    try {
+        let result = await nguoiDungService.napDiem(req.authorization.NDID, diem);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ url: result.data.url });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function xuLyKetQuaNapDiem(req, res) {
+    let NDID = parseInt(req.params.NDID);
+    if (!NDID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await nguoiDungService.xuLyKetQuaNapDiem(NDID, req.query);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Nạp điểm thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function rutDiem(req, res) {
+    let diem = parseInt(req.body.diem);
+    if (!diem || diem < 10) {
+        return res.status(400).json({ error: 'Thiếu điểm hoặc điểm rút ít hơn 10' });
+    }
+    try {
+        let result = await nguoiDungService.rutDiem(req.authorization.NDID, diem);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Rút điểm thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
     yeuCauOTPDangKy,
     dangKy,
@@ -237,5 +327,10 @@ module.exports = {
     doiMatKhau,
     dangXuat,
     tatCaNguoiDung,
-    capNhatNguoiDung
+    capNhatNguoiDung,
+    thongTinTaiKhoan,
+    doiTenTaiKhoan,
+    napDiem,
+    xuLyKetQuaNapDiem,
+    rutDiem
 };
