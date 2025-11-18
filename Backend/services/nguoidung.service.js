@@ -5,10 +5,14 @@ const { sendEmail } = require('../utils/mail');
 const { getURL, verify } = require('../utils/payment');
 const { signToken, verifyToken } = require('../utils/token');
 const Admin = require('../models/admin.model');
+const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
 const LichSuDiem = require('../models/lichsudiem.model');
+const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
 const NguoiDung = require('../models/nguoidung.model');
+const Truyen = require('../models/truyen.model');
+const YeuThich = require('../models/yeuthich.model');
 
 const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
 const CACHE_OTP_TTL_SECONDS = parseInt(process.env.CACHE_OTP_TTL_SECONDS);
@@ -515,6 +519,183 @@ async function rutDiem(ndid, diem) {
     }
 }
 
+async function layLichSuDoc(ndid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let lichSuDoc = await LichSuDoc.findAll({
+            where: { NDID: nguoiDung.NDID },
+            include: {
+                model: ChuongTruyen,
+                include: { model: Truyen }
+            },
+            order: [
+                ['NgayDoc', 'DESC']
+            ]
+        });
+        return {
+            ok: true,
+            data: { lichSuDoc: lichSuDoc }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy lịch sử đọc', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layDanhSachYeuThich(ndid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let truyens = await Truyen.findAll({
+            include: {
+                model: YeuThich,
+                where: { NDID: nguoiDung.NDID },
+                required: true
+            }
+        });
+        return {
+            ok: true,
+            data: { truyens: truyens }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy danh sách yêu thích', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function themVaoDanhSachYeuThich(ndid, tid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let truyen = await Truyen.findOne({
+            attributes: ['TID'],
+            where: {
+                TID: tid,
+                DaDuyet: 1
+            },
+            include: {
+                model: ChuongTruyen,
+                attributes: [],
+                required: true
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            }
+        }
+        let yeuThich = await YeuThich.findOne({
+            NDID: nguoiDung.NDID,
+            TID: truyen.TID
+        });
+        if (yeuThich) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Truyện đã có trong danh sách yêu thích'
+            };
+        }
+        await database.transaction(async (transaction) => {
+            await YeuThich.create({
+                NDID: nguoiDung.NDID,
+                TID: truyen.TID
+            }, { transaction: transaction });
+            await Truyen.increment({ LuotThich: 1 }, {
+                where: { TID: truyen.TID },
+                transaction: transaction
+            });
+        });
+        return {
+            ok: true
+        };
+    } catch (error) {
+        logger.error('Lỗi khi thêm truyện vào danh sách yêu thích', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function xoaKhoiDanhSachYeuThich(ndid, tid) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let yeuThich = await YeuThich.findOne({
+            where: {
+                NDID: nguoiDung.NDID,
+                TID: tid
+            }
+        });
+        if (!yeuThich) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Không có lượt thích khớp với yêu cầu'
+            }
+        }
+        await database.transaction(async (transaction) => {
+            await yeuThich.destroy({ transaction: transaction });
+            await Truyen.decrement({ LuotThich: 1 }, {
+                where: { TID: yeuThich.TID },
+                transaction: transaction
+            });
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi xóa truyện khỏi danh sách yêu thích', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
     guiOTPDangKy,
     dangKy,
@@ -530,5 +711,9 @@ module.exports = {
     doiTenTaiKhoan,
     napDiem,
     xuLyKetQuaNapDiem,
-    rutDiem
+    rutDiem,
+    layLichSuDoc,
+    layDanhSachYeuThich,
+    themVaoDanhSachYeuThich,
+    xoaKhoiDanhSachYeuThich
 };

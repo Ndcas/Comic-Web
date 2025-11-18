@@ -58,4 +58,18 @@ router.get('/xuLyKetQuaNapDiem/:NDID', controller.xuLyKetQuaNapDiem);
 // Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', diem (số điểm cần rút)
 router.post('/rutDiem', nguoiDungFilter.verifyAccessToken, controller.rutDiem);
 
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]'
+// => lichSuDoc (mảng LichSuDoc đã sắp xếp và có join với ChuongTruyen đã join với Truyen)
+router.get('/lichSuDoc', nguoiDungFilter.verifyAccessToken, controller.lichSuDoc);
+
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]'
+// => truyens (mảng Truyen)
+router.get('/danhSachYeuThich', nguoiDungFilter.verifyAccessToken, controller.danhSachYeuThich);
+
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID trong body
+router.post('/themVaoDanhSachYeuThich', nguoiDungFilter.verifyAccessToken, controller.themVaoDanhSachYeuThich);
+
+// Yêu cầu access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID trong body
+router.post('/xoaKhoiDanhSachYeuThich', nguoiDungFilter.verifyAccessToken, controller.xoaKhoiDanhSachYeuThich);
+
 module.exports = router;

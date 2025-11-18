@@ -317,6 +317,62 @@ async function rutDiem(req, res) {
     }
 }
 
+async function lichSuDoc(req, res) {
+    try {
+        let result = await nguoiDungService.layLichSuDoc(req.authorization.NDID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ lichSuDoc: result.data.lichSuDoc });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function danhSachYeuThich(req, res) {
+    try {
+        let result = await nguoiDungService.layDanhSachYeuThich(req.authorization.NDID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ truyens: result.data.truyens });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function themVaoDanhSachYeuThich(req, res) {
+    let TID = parseInt(req.body.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await nguoiDungService.themVaoDanhSachYeuThich(req.authorization.NDID, TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Thêm truyện vào danh sách yêu thích thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function xoaKhoiDanhSachYeuThich(req, res) {
+    let TID = parseInt(req.body.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await nguoiDungService.xoaKhoiDanhSachYeuThich(req.authorization.NDID, TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Xóa truyện khỏi danh sách yêu thích thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
     yeuCauOTPDangKy,
     dangKy,
@@ -332,5 +388,9 @@ module.exports = {
     doiTenTaiKhoan,
     napDiem,
     xuLyKetQuaNapDiem,
-    rutDiem
+    rutDiem,
+    lichSuDoc,
+    danhSachYeuThich,
+    themVaoDanhSachYeuThich,
+    xoaKhoiDanhSachYeuThich
 };

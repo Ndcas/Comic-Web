@@ -432,10 +432,10 @@ async function layThongTinTruyen(tid, token = null) {
                 attributes: [],
                 required: true
             }, {
-                model: BinhLuan,
+                model: TheLoaiTruyen,
                 include: {
-                    model: NguoiDung,
-                    attributes: ['TenTaiKhoan']
+                    model: TheLoai,
+                    attributes: ['TenTheLoai']
                 }
             }]
         });
@@ -1224,6 +1224,75 @@ async function timTruyenBangAI(question) {
     }
 }
 
+async function layBinhLuan(tid) {
+    try {
+        let binhLuans = await BinhLuan.findAll({
+            where: { TID: tid },
+            include: {
+                model: NguoiDung,
+                attributes: ['TenTaiKhoan']
+            },
+            order: [
+                ['ThoiGianBinhLuan', 'DESC']
+            ]
+        });
+        return {
+            ok: true,
+            data: { binhLuans: binhLuans }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy bình luận', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function themBinhLuan(ndid, tid, noiDung) {
+    try {
+        let nguoiDung = await NguoiDung.findOne({
+            attributes: ['NDID'],
+            where: {
+                NDID: ndid,
+                TrangThai: 1
+            }
+        });
+        if (!nguoiDung) {
+            return {
+                ok: false,
+                status: 401,
+                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
+            };
+        }
+        let truyen = await Truyen.findOne({
+            attributes: ['TID'],
+            where: {
+                TID: tid,
+                DaDuyet: 1
+            },
+            include: {
+                model: ChuongTruyen,
+                attributes: [],
+                required: true
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            }
+        }
+        await BinhLuan.create({
+            NDID: nguoiDung.NDID,
+            TID: truyen.TID,
+            NoiDung: noiDung
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi thêm bình luận', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
     layDanhSachTheLoai,
     timTruyenMoi,
@@ -1246,5 +1315,7 @@ module.exports = {
     xoaChuongTruyen,
     moKhoaChuongTruyen,
     layTomTatTruyen,
-    timTruyenBangAI
+    timTruyenBangAI,
+    layBinhLuan,
+    themBinhLuan
 };

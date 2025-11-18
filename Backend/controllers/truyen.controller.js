@@ -430,6 +430,40 @@ async function timTruyenBangAI(req, res) {
     }
 }
 
+async function danhSachBinhLuan(req, res) {
+    let TID = parseInt(req.query.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.layBinhLuan(TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ binhLuans: result.data.binhLuans });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function binhLuan(req, res) {
+    let { TID, NoiDung } = req.body;
+    TID = parseInt(TID);
+    NoiDung = NoiDung?.trim();
+    if (!TID || !NoiDung || NoiDung.length > 300) {
+        return res.status(400).json({ error: 'Thiếu thông tin hoặc thông tin không đúng định dạng' });
+    }
+    try {
+        let result = await truyenService.themBinhLuan(req.authorization.NDID, TID, NoiDung);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ message: 'Thêm bình luận thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
     theLoai,
     truyenMoi,
@@ -450,5 +484,7 @@ module.exports = {
     xoaChuongTruyen,
     moKhoaChuongTruyen,
     tomTatTruyen,
-    timTruyenBangAI
+    timTruyenBangAI,
+    danhSachBinhLuan,
+    binhLuan
 };
