@@ -68,6 +68,12 @@ const comicSummaryContext = `
     Hãy từ chối các câu hỏi không liên quan và hãy cảnh báo người dùng nếu truyện đó có các thể không phù hợp với một số người về vấn đề nội dung nhạy cảm hoặc chính trị
 `;
 
+const comicValidationContext = `
+    Bạn là 1 chatbot hỗ trợ kiểm tra duyệt truyện của 1 trang web truyện tranh.
+    Người dùng sẽ gửi thông tin về truyện được yêu cầu và bạn sẽ tìm xem liệu truyện đó có nguy cơ gây ra vấn đề bản quyền hoặc các vấn đề nhạy cảm khi được đăng lên trang web mà có thể thu phí khi người đọc muốn đọc truyện.
+    Hãy trả lời ngắn gọn và không trả lời các câu hỏi không liên quan.
+`;
+
 async function layDanhSachTheLoai() {
     try {
         let cached = getFromCache('TheLoai');
@@ -617,6 +623,33 @@ async function timTruyenChuaDuyet() {
         })
     } catch (error) {
         logger.error('Lỗi khi tìm truyện chưa duyệt', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function thamKhaoYKienAIDuyetTruyen(tid) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: {
+                TID: tid,
+                DaDuyet: 0
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        let question = `Hãy giúp tôi kiểm tra truyện ${truyen.TenTruyen} của tác giả ${truyen.TacGia ? truyen.TacGia : 'chưa biết'}`
+        let result = await askGemini(comicValidationContext, question);
+        return {
+            ok: true,
+            data: { result: result }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tham khảo ý kiến AI để duyệt truyện', error);
         throw new Error('Lỗi hệ thống');
     }
 }
@@ -1303,6 +1336,7 @@ module.exports = {
     layThongTinChuongTruyen,
     themTruyen,
     timTruyenChuaDuyet,
+    thamKhaoYKienAIDuyetTruyen,
     duyetTruyen,
     layThongTinTruyenAdmin,
     layThongTinChuongTruyenAdmin,

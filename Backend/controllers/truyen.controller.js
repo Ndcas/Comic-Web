@@ -210,6 +210,22 @@ async function truyenChuaDuyet(req, res) {
     }
 }
 
+async function thamKhaoYKienAIDuyetTruyen(req, res) {
+    let TID = parseInt(req.query.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.thamKhaoYKienAIDuyetTruyen(TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ result: result.data.result });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 async function duyetTruyen(req, res) {
     let { TID, DaDuyet, LyDoTuChoi } = req.body;
     TID = parseInt(TID);
@@ -474,6 +490,7 @@ module.exports = {
     thongTinChuongTruyen,
     themTruyen,
     truyenChuaDuyet,
+    thamKhaoYKienAIDuyetTruyen,
     duyetTruyen,
     thongTinTruyenAdmin,
     thongTinChuongTruyenAdmin,

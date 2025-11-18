@@ -18,4 +18,10 @@ router.post('/xuLyBaoCaoBinhLuan', adminFilter.verifyAccessToken, controller.xuL
 // Cần access token của Admin trong header Authorization dạng 'Bearer [access token]', BCTID, mode (0: bỏ qua, 1: xóa truyện, 2: xóa truyện và chặn người dùng)
 router.post('/xuLyBaoCaoTruyen', adminFilter.verifyAccessToken, controller.xuLyBaoCaoTruyen);
 
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', BLID, LyDo trong body
+router.post('/baoCaoBinhLuan', controller.baoCaoBinhLuan);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID, LyDo trong body
+router.post('/baoCaoTruyen', controller.baoCaoTruyen);
+
 module.exports = router;

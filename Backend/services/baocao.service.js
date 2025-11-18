@@ -206,4 +206,55 @@ async function xuLyBaoCaoTruyen(bctid, mode = 0) {
     }
 }
 
-module.exports = { timBaoCaoBinhLuanChuaXuLy, timBaoCaoTruyenChuaXuLy, xuLyBaoCaoBinhLuan, xuLyBaoCaoTruyen };
+async function baoCaoBinhLuan(blid, lyDo) {
+    try {
+        let binhLuan = await BinhLuan.findOne({
+            attributes: ['BLID'],
+            where: { BLID: blid }
+        });
+        if (!binhLuan) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy bình luận được yêu cầu'
+            };
+        }
+        await BaoCaoBinhLuan.create({
+            BLID: binhLuan.BLID,
+            LyDo: lyDo
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi tạo báo cáo bình luận', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function baoCaoTruyen(tid, lyDo) {
+    try {
+        let truyen = await Truyen.findOne({
+            attributes: ['TID'],
+            where: {
+                TID: tid,
+                DaDuyet: 1
+            }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        await BaoCaoTruyen.create({
+            TID: truyen.TID,
+            LyDo: lyDo
+        });
+        return { ok: true };
+    } catch (error) {
+        logger.error('Lỗi khi tạo báo cáo truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+module.exports = { timBaoCaoBinhLuanChuaXuLy, timBaoCaoTruyenChuaXuLy, xuLyBaoCaoBinhLuan, xuLyBaoCaoTruyen, baoCaoBinhLuan, baoCaoTruyen };

@@ -40,6 +40,10 @@ router.post('/themTruyen', nguoiDungFilter.verifyAccessToken, uploadAnhBia, cont
 // => truyens (mảng Truyen)
 router.get('/truyenChuaDuyet', adminFilter.verifyAccessToken, controller.truyenChuaDuyet);
 
+// Cần access token của Admin trong header Authorization dạng 'Bearer [access token]', TID trong query
+// => result (phản hồi của AI)
+router.get('/thamKhaoYKienAIDuyetTruyen', adminFilter.verifyAccessToken, controller.thamKhaoYKienAIDuyetTruyen);
+
 // Cần access token của Admin trong header Authorization dạng 'Bearer [access token]', TID, DaDuyet (1 để duyệt, các giá trị khác để từ chối), có thể kèm theo LyDoTuChoi trong body
 router.post('/duyetTruyen', adminFilter.verifyAccessToken, controller.duyetTruyen);
 
