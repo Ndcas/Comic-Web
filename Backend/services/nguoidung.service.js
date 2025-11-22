@@ -453,18 +453,20 @@ async function napDiem(ndid, diem) {
 async function xuLyKetQuaNapDiem(ndid, requestQuery) {
     let status = verify(requestQuery);
     if (!status.ok) {
+        logger.info(`Từ chối xử lý kết quả giao dịch ${status.transID} do ${status.error}`);
         return {
             ok: false,
             status: 400,
             error: `${status.error}\nMã giao dịch: ${status.transID}`
-        }
+        };
     }
     if (getFromCache(`TransactionID:${status.transID}`) != '1') {
+        logger.info(`Từ chối xử lý kết quả giao dịch ${status.transID} do ID giao dịch không còn trong bộ nhớ đệm`);
         return {
             ok: false,
             status: 400,
             error: `Giao dịch đã được xử lý trước đó\nMã giao dịch: ${status.transID}`
-        }
+        };
     } else {
         deleteFromCache(`TransactionID:${status.transID}`);
     }
@@ -482,6 +484,7 @@ async function xuLyKetQuaNapDiem(ndid, requestQuery) {
                 GhiChu: `Nạp điểm mã giao dịch ${status.transID}`
             }, { transaction: transaction });
         });
+        logger.info(`Xử lý thành công giao dịch ${status.transID}`);
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi xử lý kết quả nạp điểm', error);
