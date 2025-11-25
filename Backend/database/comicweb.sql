@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 25, 2025 lúc 06:36 AM
+-- Thời gian đã tạo: Th10 25, 2025 lúc 06:39 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -415,6 +415,12 @@ ALTER TABLE `chuongtruyen`
 --
 ALTER TABLE `hinhanh`
   MODIFY `HAID` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT cho bảng `lichsudiem`
+--
+ALTER TABLE `lichsudiem`
+  MODIFY `LSDID` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `lichsudoc`
