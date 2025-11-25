@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Máy chủ: 127.0.0.1
--- Thời gian đã tạo: Th10 14, 2025 lúc 08:55 AM
+-- Thời gian đã tạo: Th10 25, 2025 lúc 06:36 AM
 -- Phiên bản máy phục vụ: 10.4.32-MariaDB
 -- Phiên bản PHP: 8.0.30
 
@@ -131,7 +131,8 @@ CREATE TABLE `lichsudiem` (
   `LGDID` int(11) NOT NULL,
   `NDID` int(11) NOT NULL,
   `DiemThayDoi` float NOT NULL,
-  `GhiChu` varchar(300) DEFAULT NULL
+  `GhiChu` varchar(300) DEFAULT NULL,
+  `NgayDoi` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -414,12 +415,6 @@ ALTER TABLE `chuongtruyen`
 --
 ALTER TABLE `hinhanh`
   MODIFY `HAID` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT cho bảng `lichsudiem`
---
-ALTER TABLE `lichsudiem`
-  MODIFY `LSDID` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT cho bảng `lichsudoc`

@@ -22,6 +22,7 @@ const HOT_COMICS = parseInt(process.env.HOT_COMICS);
 const COMICS_PER_PAGE = parseInt(process.env.COMICS_PER_PAGE);
 const CACHE_NUM_COMICS_TTL_SECONDS = parseInt(process.env.CACHE_NUM_COMICS_TTL_SECONDS);
 const GOOGLE_API_RESULT_CACHE_TTL_SECONDS = parseInt(process.env.GOOGLE_API_RESULT_CACHE_TTL_SECONDS);
+const PROFIT_RATIO = parseFloat(process.env.PROFIT_RATIO);
 
 const comicFindingContext = `
     Bạn sẽ chatbot hỗ trợ việc tìm kiếm truyện trong cơ sở dữ liệu.
@@ -1162,7 +1163,7 @@ async function moKhoaChuongTruyen(ndid, ctid) {
                 transaction: transaction
             });
             await NguoiDung.increment({
-                Diem: chuongTruyen.GiaChuong * 0.9
+                Diem: chuongTruyen.GiaChuong * (1 - PROFIT_RATIO)
             }, {
                 where: { NDID: chuongTruyen.Truyen.NDID },
                 transaction: transaction
@@ -1175,7 +1176,7 @@ async function moKhoaChuongTruyen(ndid, ctid) {
             }, {
                 NDID: chuongTruyen.Truyen.NDID,
                 LGDID: 1,
-                DiemThayDoi: chuongTruyen.GiaChuong * 0.9,
+                DiemThayDoi: chuongTruyen.GiaChuong * (1 - PROFIT_RATIO),
                 GhiChu: `Điểm người đọc mở khóa chương ${chuongTruyen.TenChuongTruyen}`
             }], {
                 validate: true,

@@ -8,7 +8,7 @@ const router = express.Router();
 // => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), accessToken, refeshToken (trong cookie)
 router.post('/dangNhap', controller.dangNhap);
 
-// Yêu cầu có refreshToken trong cookie
+// Yêu cầu có refreshToken của Admin trong cookie
 // => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), accessToken
 router.get('/lamMoiAccessToken', controller.lamMoiAccessToken);
 
@@ -19,11 +19,24 @@ router.post('/yeuCauOTPQuenMatKhau', controller.yeuCauOTPQuenMatKhau);
 // Yêu cầu Email, oldPassword (mật khẩu cũ), newPassword (mật khẩu mới), OTP (mã gửi đến email) trong body
 router.post('/datLaiMatKhau', controller.datLaiMatKhau);
 
-// Yêu cầu access token trong header Authorization dạng 'Bearer [access token]', oldPassword (mật khẩu cũ), newPassword (mật khẩu mới) trong body
+// Yêu cầu access token của Admin trong header Authorization dạng 'Bearer [access token]', oldPassword (mật khẩu cũ), newPassword (mật khẩu mới) trong body
 // => refreshToken (trong cookie)
 router.post('/doiMatKhau', verifyAccessToken, controller.doiMatKhau);
 
-// Yêu cầu access token trong header Authorization dạng 'Bearer [access token]'
+// Yêu cầu access token của Admin trong header Authorization dạng 'Bearer [access token]'
 router.get('/dangXuat', verifyAccessToken, controller.dangXuat);
+
+// Yêu cầu access token của Admin trong header Authorization dạng 'Bearer [access token]', có thể truyền giá trị khác falsy tên force trong query để bắt buộc làm mới báo cáo
+// => reportTime (thời gian tạo báo cáo),
+// numOfUsers (số tài khoản người dùng còn hoạt động),
+// verifiedComics (số truyện được duyệt),
+// unverifiedComics (số truyện chờ duyệt),
+// rejectedComics (số truyện bị từ chối),
+// numOfChapters (số chương truyện),
+// unprocessedComicReports (số báo cáo truyện chưa xử lý),
+// unprocessedCommentReports (số báo cáo bình luận chưa xử lý),
+// profitPointsByDays (mảng object {date (ngày), points (số điểm lời)})
+// viewsByDays (mảng object {date (ngày), views (số lượt xem)})
+router.get('/baoCaoHeThong', verifyAccessToken, controller.baoCaoHeThong);
 
 module.exports = router;

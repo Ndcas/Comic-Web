@@ -120,4 +120,17 @@ async function dangXuat(req, res) {
     }
 }
 
-module.exports = { dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat };
+async function baoCaoHeThong(req, res) {
+    let force = req.query.force;
+    try {
+        let result = await adminService.layBaoCaoHeThong(force ? true : false);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ ...result.data });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+module.exports = { dangNhap, lamMoiAccessToken, yeuCauOTPQuenMatKhau, datLaiMatKhau, doiMatKhau, dangXuat, baoCaoHeThong };
