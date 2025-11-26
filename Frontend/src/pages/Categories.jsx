@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { FaBookOpen, FaChevronRight } from 'react-icons/fa';
+import { get } from '../utils/request';
 
 // ĐÃ SỬA: Loại bỏ '/api'
-const API_BASE_URL = 'http://localhost:8080/truyen';
+// const API_BASE_URL = 'http://localhost:8080/truyen';
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Categories() {
     const [categories, setCategories] = useState([]);
@@ -16,12 +18,17 @@ function Categories() {
         const fetchCategories = async () => {
             try {
                 // Sửa lỗi 404 cho API /theLoai
-                const response = await axios.get(`${API_BASE_URL}/theLoai`);
+                // const response = await axios.get(`${VITE_BACKEND_URL}/theLoai`);
+                let response = await get(`${VITE_BACKEND_URL}/truyen/theLoai`);
+                let data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error);
+                }
 
                 // Đọc dữ liệu theo cấu trúc phổ biến của Backend
-                const categoriesData = response.data.theLoais || response.data.data.theLoais;
+                // const categoriesData = data.theLoais;
 
-                setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+                setCategories(data.theLoais);
                 setLoading(false);
             } catch (err) {
                 console.error("Lỗi tải thể loại:", err);
@@ -51,11 +58,12 @@ function Categories() {
             <div className="grid grid-cols-2 gap-3 
                         sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
 
-                {categories.map(cat => (
+                {categories.map((cat, index) => (
                     // Link đến trang truyện theo thể loại (CategoryComics.jsx)
                     <Link
-                        key={cat.TLID}
+                        key={index}
                         to={`/category/${cat.TLID}`}
+                        state={{ category: cat }}
                         className="group block"
                     >
                         <div className="p-4 bg-white rounded-lg shadow-md border 

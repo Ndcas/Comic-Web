@@ -123,12 +123,13 @@ async function dangNhap(email, matKhau) {
             Email: nguoiDung.Email,
             NgayThamGia: nguoiDung.NgayThamGia,
             NamSinh: nguoiDung.NamSinh,
-            isUser: true
+            isUser: true,
+            tokenID: Date.now()
         };
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
         let refreshToken = signToken(payload, true);
-        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${payload.tokenID}`, refreshToken);
         return {
             ok: true,
             data: {
@@ -153,7 +154,7 @@ async function lamMoiAccessToken(refreshToken) {
                 error: 'Token không hợp lệ'
             };
         }
-        if (!getFromCache(`RTNguoiDung:${payload.NDID}:${refreshToken}`)) {
+        if (getFromCache(`RTNguoiDung:${payload.NDID}:${payload.tokenID}`) != refreshToken) {
             return {
                 ok: false,
                 status: 403,
@@ -166,7 +167,8 @@ async function lamMoiAccessToken(refreshToken) {
             Email: payload.Email,
             NgayThamGia: payload.NgayThamGia,
             NamSinh: payload.NamSinh,
-            isUser: true
+            isUser: true,
+            tokenID: payload.tokenID
         };
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
@@ -280,10 +282,11 @@ async function doiMatKhau(id, oldPassword, newPassword) {
             Email: nguoiDung.Email,
             NgayThamGia: nguoiDung.NgayThamGia,
             NamSinh: nguoiDung.NamSinh,
-            isUser: true
+            isUser: true,
+            tokenID: Date.now()
         };
         let refreshToken = signToken(payload, true);
-        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${payload.tokenID}`, refreshToken);
         return {
             ok: true,
             data: { refreshToken: refreshToken }
@@ -296,7 +299,10 @@ async function doiMatKhau(id, oldPassword, newPassword) {
 
 async function dangXuat(id, refreshToken) {
     try {
-        deleteFromCache(`RTNguoiDung:${id}:${refreshToken}`);
+        let payload = verifyToken(refreshToken, true);
+        if (payload) {
+            deleteFromCache(`RTNguoiDung:${id}:${payload.tokenID}`);
+        }
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi đổi đăng xuất người dùng', error);
@@ -400,12 +406,13 @@ async function doiTenTaiKhoan(ndid, tenTaiKhoan) {
             Email: nguoiDung.Email,
             NgayThamGia: nguoiDung.NgayThamGia,
             NamSinh: nguoiDung.NamSinh,
-            isUser: true
+            isUser: true,
+            tokenID: Date.now()
         };
         let hanDung = Date.now() + ACCESS_TOKEN_TTL_MS;
         let accessToken = signToken(payload);
         let refreshToken = signToken(payload, true);
-        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${refreshToken}`, '1');
+        saveToCache(`RTNguoiDung:${nguoiDung.NDID}:${payload.tokenID}`, refreshToken);
         return {
             ok: true,
             data: {

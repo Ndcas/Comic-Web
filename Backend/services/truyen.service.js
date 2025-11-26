@@ -133,7 +133,7 @@ async function timTruyenMoi(page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.TID, TenTruyen, AnhBia
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -185,7 +185,7 @@ async function timTruyenHot(token = null) {
         }
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.TID, TenTruyen, AnhBia
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(LuotXem) AS MaxLuotXem
@@ -212,7 +212,7 @@ async function timTruyenHot(token = null) {
         let TIDs = result.map(item => item.TID);
         let TIDCondition = TIDs.length > 0 ? `AND Truyen.TID NOT IN (${TIDs.join(',')})` : '';
         let newSql = `
-            SELECT Truyen.TID, TenTruyen, AnhBia
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -242,7 +242,6 @@ async function timTruyenHot(token = null) {
 async function timTruyenTheoTheLoai(tlid, page, token = null) {
     try {
         let theLoai = await TheLoai.findOne({
-            attributes: ['TLID'],
             where: { TLID: tlid }
         });
         if (!theLoai) {
@@ -291,7 +290,7 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.TID, TenTruyen, AnhBia
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -318,7 +317,8 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
             data: {
                 page: page,
                 maxPage: maxPage,
-                truyenTheoTheLoai: result
+                truyenTheoTheLoai: result,
+                theLoai: theLoai
             }
         };
     } catch (error) {
@@ -368,7 +368,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.TID, TenTruyen, AnhBia
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -510,6 +510,7 @@ async function layDanhSachChuong(tid, token = null) {
                     where: { NDID: ndid },
                     required: false
                 },
+                order: [['NgayDang', 'ASC']]
             });
         } else {
             chuongTruyens = await ChuongTruyen.findAll({
@@ -559,23 +560,23 @@ async function layThongTinChuongTruyen(ctid, token = null) {
         let includeCriteria = [{
             model: HinhAnh,
             attributes: ['HinhAnh']
+        }, {
+            model: Truyen,
+            attributes: ['TenTruyen'],
+            where: showR18 ? {} : { GioiHan18Tuoi: 0 },
+            required: true
         }];
-        if (!showR18) {
-            includeCriteria.append({
-                model: Truyen,
-                attributes: [],
-                where: { GioiHan18Tuoi: 0 },
-                required: true
-            });
-        }
-        let criteria = { CTID: ctid };
-        if (!bought) {
-            criteria.GiaChuong = 0;
-        }
         let chuongTruyen = await ChuongTruyen.findOne({
-            where: criteria,
+            where: { CTID: ctid },
             include: includeCriteria
         });
+        if (chuongTruyen.GiaChuong > 0 && !bought) {
+            return {
+                ok: false,
+                status: 403,
+                error: 'Chương này cần được mở khóa trước khi đọc'
+            }
+        }
         if (!chuongTruyen) {
             return {
                 ok: false,

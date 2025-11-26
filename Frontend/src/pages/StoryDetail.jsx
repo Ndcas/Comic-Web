@@ -3,14 +3,17 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { FaBookOpen, FaUserEdit, FaTag, FaCheckCircle, FaRunning, FaClock, FaHeart, FaEye, FaArrowRight } from 'react-icons/fa';
 import { IoIosWarning } from "react-icons/io";
+import { get } from '../utils/request';
 
 // ĐÃ SỬA: Loại bỏ '/api'
-const API_BASE_URL = 'http://localhost:8080/truyen';
-const ASSET_BASE_URL = 'http://localhost:8080';
+// const API_BASE_URL = 'http://localhost:8080/truyen';
+// const ASSET_BASE_URL = 'http://localhost:8080';
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function StoryDetail() {
     const { TID } = useParams();
     const [story, setStory] = useState(null);
+    const [chapters, setChapters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -18,16 +21,32 @@ function StoryDetail() {
         setLoading(true);
         setError(null);
         try {
-            // Giả định API /truyen/:TID
-            const response = await axios.get(`${API_BASE_URL}/${TID}`);
+            // // Giả định API /truyen/:TID
+            // const response = await axios.get(`${API_BASE_URL}/${TID}`);
 
             // Điều chỉnh cách đọc dữ liệu
-            const storyData = response.data.truyen || response.data.data.truyen;
-            setStory(storyData);
-
+            let truyenResponse = null;
+            let chuongTruyenResponse = null;
+            if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
+                truyenResponse = await get(`${VITE_BACKEND_URL}/truyen/thongTinTruyen?TID=${TID}`, false, true);
+                chuongTruyenResponse = await get(`${VITE_BACKEND_URL}/truyen/danhSachChuong?TID=${TID}`, false, true);
+            } else {
+                truyenResponse = await get(`${VITE_BACKEND_URL}/truyen/thongTinTruyen?TID=${TID}`);
+                chuongTruyenResponse = await get(`${VITE_BACKEND_URL}/truyen/danhSachChuong?TID=${TID}`);
+            }
+            let dataTruyen = await truyenResponse.json();
+            if (!truyenResponse.ok) {
+                throw new Error(dataTruyen.error);
+            }
+            let dataChuongTruyen = await chuongTruyenResponse.json();
+            if (!chuongTruyenResponse.ok) {
+                throw new Error(dataChuongTruyen.error);
+            }
+            setStory(dataTruyen.truyen);
+            setChapters(dataChuongTruyen.chuongTruyens);
         } catch (err) {
             console.error("Lỗi tải chi tiết truyện:", err);
-            setError("Không thể tải chi tiết truyện. Vui lòng kiểm tra ID hoặc kết nối Backend.");
+            setError(err.message || "Không thể tải chi tiết truyện. Vui lòng kiểm tra ID hoặc kết nối Backend.");
         } finally {
             setLoading(false);
         }
@@ -42,18 +61,18 @@ function StoryDetail() {
     if (!story) return <div className="text-center p-8 text-gray-500">Truyện không tồn tại.</div>;
 
     // Lấy chương đầu tiên và chương mới nhất để tạo nút đọc
-    const firstChapter = story.chuongTruyens && story.chuongTruyens.length > 0 ? story.chuongTruyens[0] : null;
-    const latestChapter = story.chuongTruyens && story.chuongTruyens.length > 0 ? story.chuongTruyens[story.chuongTruyens.length - 1] : null;
+    const firstChapter = chapters.length > 0 ? chapters[0] : null;
+    const latestChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
 
     // Xác định trạng thái
-    const statusText = story.TrangThai === 2 ? 'Hoàn Thành' : 'Đang Ra';
-    const statusColor = story.TrangThai === 2 ? 'bg-blue-600' : 'bg-red-600';
-    const statusIcon = story.TrangThai === 2 ? <FaCheckCircle /> : <FaRunning />;
+    const statusText = story.TrangThai == 0 ? 'Hoàn Thành' : 'Đang Ra';
+    const statusColor = story.TrangThai == 0 ? 'bg-blue-600' : 'bg-red-600';
+    const statusIcon = story.TrangThai == 0 ? <FaCheckCircle /> : <FaRunning />;
 
     // Giả định một số giá trị mặc định cho dữ liệu Backend thiếu
-    const luotXem = story.LuotXem || 0;
-    const luotThich = story.LuotThich || 0;
-    const ngayCapNhat = story.NgayCapNhat || 'Đang cập nhật';
+    // const luotXem = story.LuotXem;
+    const luotThich = story.LuotThich;
+    // const ngayCapNhat = story.NgayCapNhat || 'Đang cập nhật';
 
     return (
         <div className="container mx-auto p-4 max-w-7xl">
@@ -72,7 +91,7 @@ function StoryDetail() {
                     {/* Ảnh Bìa */}
                     <div className="w-2/3 sm:w-1/2 lg:w-full aspect-[3/4] rounded-lg shadow-xl overflow-hidden mb-5 border-4 border-gray-200">
                         <img
-                            src={`${ASSET_BASE_URL}/assets/covers/${story.AnhBia}`}
+                            src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia || 'default.jpg'}`}
                             alt={story.TenTruyen}
                             className="w-full h-full object-cover"
                         />
@@ -86,7 +105,7 @@ function StoryDetail() {
                                 className="w-full py-3 bg-red-600 text-white font-bold text-lg 
                                            rounded-full flex items-center justify-center 
                                            hover:bg-red-700 transition-colors shadow-lg">
-                                <FaBookOpen className="mr-2" /> Đọc Từ Chương 1
+                                <FaBookOpen className="mr-2" /> Đọc Từ Chương Đầu
                             </Link>
                         )}
                         {latestChapter && (
@@ -109,24 +128,24 @@ function StoryDetail() {
                         <h2 className="text-xl font-bold mb-3 text-red-600 border-b pb-1">Tóm Tắt</h2>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-gray-700">
-                            <p className="flex items-center"><FaUserEdit className="text-red-500 mr-2" /> **Tác giả:** {story.TacGia}</p>
-                            <p className="flex items-center"><FaRunning className={`mr-2 ${statusColor}`} /> **Trạng thái:** <span className="font-semibold ml-1 text-red-600">{statusText}</span></p>
-                            <p className="flex items-center"><FaClock className="text-red-500 mr-2" /> **Cập nhật:** {ngayCapNhat}</p>
-                            <p className="flex items-center"><FaEye className="text-red-500 mr-2" /> **Lượt xem:** {luotXem.toLocaleString()}</p>
-                            <p className="flex items-center"><FaHeart className="text-red-500 mr-2" /> **Yêu thích:** {luotThich.toLocaleString()}</p>
-                            <p className="flex items-center"><FaTag className="text-red-500 mr-2" /> **Giới hạn 18+:** {story.GioiHan18Tuoi === 1 ? 'CÓ' : 'KHÔNG'}</p>
+                            <p className="flex items-center"><FaUserEdit className="text-red-500 mr-2" /> Tác giả: {story.TacGia}</p>
+                            <p className="flex items-center"><FaRunning className={`mr-2 ${statusColor}`} /> Trạng thái: <span className="font-semibold ml-1 text-red-600">{statusText}</span></p>
+                            {/* <p className="flex items-center"><FaClock className="text-red-500 mr-2" /> **Cập nhật:** {ngayCapNhat}</p> */}
+                            {/* <p className="flex items-center"><FaEye className="text-red-500 mr-2" /> Lượt xem: {luotXem}</p> */}
+                            <p className="flex items-center"><FaHeart className="text-red-500 mr-2" /> Yêu thích: {luotThich}</p>
+                            <p className="flex items-center"><FaTag className="text-red-500 mr-2" /> Giới hạn 18+: {story.GioiHan18Tuoi == 1 ? 'CÓ' : 'KHÔNG'}</p>
                         </div>
 
                         <div className="mt-3">
                             <span className="font-semibold text-gray-800 flex items-center mb-1"><FaTag className="text-red-500 mr-2" /> Thể loại:</span>
                             <div className="flex flex-wrap gap-2">
-                                {story.TheLoais.map(cat => (
+                                {story.TheLoaiTruyens.map((cat, index) => (
                                     <Link
-                                        key={cat.TLID}
+                                        key={index}
                                         to={`/category/${cat.TLID}`}
                                         className="text-sm px-3 py-1 bg-red-100 text-red-600 rounded-full font-medium hover:bg-red-200 transition-colors"
                                     >
-                                        {cat.TenTheLoai}
+                                        {cat.TheLoai.TenTheLoai}
                                     </Link>
                                 ))}
                             </div>
@@ -140,12 +159,12 @@ function StoryDetail() {
                     </div>
 
                     {/* C. Danh sách Chương (Đầu tiên) */}
-                    <h2 className="text-2xl font-bold mb-3 text-gray-800">Danh Sách Chương ({story.chuongTruyens ? story.chuongTruyens.length : 0})</h2>
+                    <h2 className="text-2xl font-bold mb-3 text-gray-800">Danh Sách Chương ({chapters.length})</h2>
 
-                    {story.chuongTruyens && story.chuongTruyens.length > 0 ? (
+                    {chapters && chapters.length > 0 ? (
                         // Hiển thị danh sách chương dưới dạng List/Card chuyên nghiệp
                         <div className="border border-gray-200 rounded-xl overflow-hidden shadow-md divide-y divide-gray-100">
-                            {story.chuongTruyens
+                            {chapters
                                 .slice(0, 10) // Chỉ hiển thị 10 chương đầu, khuyến khích dùng Pagination ở đây
                                 .map(chapter => (
                                     <Link
@@ -157,7 +176,7 @@ function StoryDetail() {
                                             {chapter.TenChuongTruyen}
                                         </span>
                                         <span className="text-sm text-gray-500">
-                                            {chapter.NgayDang || 'Chưa rõ ngày đăng'}
+                                            {(new Date(chapter.NgayDang)).toLocaleDateString()}
                                         </span>
                                     </Link>
                                 ))}

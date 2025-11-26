@@ -36,6 +36,7 @@ const router = createBrowserRouter([
 
             { path: '/new', element: <StoryList /> },
             { path: '/hot', element: <StoryList /> },
+            { path: '/genre/:TLID', element: <StoryList /> },
             { path: '/search/:keyword?', element: <StoryList /> },
 
             { path: '/category/:TLID', element: <CategoryComics /> },

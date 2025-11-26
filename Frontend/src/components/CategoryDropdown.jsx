@@ -1,11 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { 
-    BookOpen, Tag, Zap, Compass, Heart, Laugh, Ghost, 
-    Frown, Sparkles, Rocket, School, Trophy, SearchCode, 
+import { Link, useLocation } from 'react-router-dom';
+import {
+    BookOpen, Tag, Zap, Compass, Heart, Laugh, Ghost,
+    Frown, Sparkles, Rocket, School, Trophy, SearchCode,
     Cog, Aperture, Home, ScrollText, Package, Drama, Lightbulb,
     Sun, Moon // Thêm icon Sun và Moon cho tùy chỉnh giao diện
-} from 'lucide-react'; 
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { get } from '../utils/request';
 
 // Dữ liệu thể loại đầy đủ bao gồm ID, Tên và Slug, được bổ sung Icon và Màu sắc
 const CATEGORIES = [
@@ -38,8 +40,29 @@ const CATEGORIES = [
  * @param {boolean} props.isDarkMode - Trạng thái chế độ tối hiện tại (Cần thiết cho giao diện)
  * @param {function} props.setIsDarkMode - Hàm setter để thay đổi chế độ tối (Cần thiết cho chức năng)
  */
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 const CategoryDropdown = ({ onClose, isDarkMode, setIsDarkMode }) => {
-    
+    const location = useLocation();
+    const [genres, setGenres] = useState([]);
+
+    async function fetchGenres() {
+        try {
+            let result = await get(`${VITE_BACKEND_URL}/truyen/theLoai`);
+            let data = await result.json();
+            if (!result.ok) {
+                throw new Error(data.error);
+            }
+            setGenres(data.theLoais);
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    useEffect(() => {
+        fetchGenres();
+    }, [location]);
+
     // Hàm xử lý chuyển đổi chế độ Sáng/Tối
     const handleThemeSwitch = (mode) => {
         if (setIsDarkMode) {
@@ -49,33 +72,34 @@ const CategoryDropdown = ({ onClose, isDarkMode, setIsDarkMode }) => {
     };
 
     return (
-        <div 
+        <div
             className="absolute top-full left-0 mt-2 max-w-xs md:max-w-md w-full z-50 
                        bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 
                        border border-gray-200 dark:border-gray-700 
                        max-h-[70vh] overflow-y-auto transform origin-top-left animate-slide-down"
             // Ngăn chặn sự kiện click lan truyền lên Header để không đóng dropdown ngay lập tức
-            onClick={(e) => e.stopPropagation()} 
+            onClick={(e) => e.stopPropagation()}
         >
             <h3 className="text-lg font-bold text-red-600 dark:text-red-500 mb-3 border-b border-gray-200 dark:border-gray-700 pb-2 flex items-center">
                 <BookOpen className="w-5 h-5 mr-2" /> TẤT CẢ CÁC THỂ LOẠI
             </h3>
-            
+
             {/* Grid 2 cột cho Thể loại */}
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                {CATEGORIES.map((category) => {
-                    const CategoryIcon = category.icon || Tag; // Fallback to Tag
+                {genres.map((category, index) => {
+                    // const CategoryIcon = category.icon || Tag; // Fallback to Tag
+                    const CategoryIcon = Tag;
                     return (
                         <Link
-                            key={category.id}
+                            key={index}
                             // Sử dụng slug cho URL category
-                            to={`/category/${category.slug}`} 
+                            to={`/category/${category.TLID}`}
                             onClick={onClose}
                             className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 transition truncate group"
                         >
                             {/* Icon tùy chỉnh hoặc Tag */}
                             <CategoryIcon className={`w-4 h-4 mr-2 opacity-80 ${category.color} transition duration-150 group-hover:opacity-100`} />
-                            {category.name}
+                            {category.TenTheLoai}
                         </Link>
                     );
                 })}
@@ -90,28 +114,26 @@ const CategoryDropdown = ({ onClose, isDarkMode, setIsDarkMode }) => {
                     {/* Nút Màu sáng */}
                     <button
                         onClick={() => handleThemeSwitch('light')}
-                        className={`flex-1 flex items-center justify-center p-2 text-sm font-medium rounded-lg transition-all border ${
-                            !isDarkMode 
-                                ? 'bg-red-600 text-white border-red-600 shadow-md' 
-                                : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
-                        }`}
+                        className={`flex-1 flex items-center justify-center p-2 text-sm font-medium rounded-lg transition-all border ${!isDarkMode
+                            ? 'bg-red-600 text-white border-red-600 shadow-md'
+                            : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
+                            }`}
                     >
                         <Sun className="w-4 h-4 mr-1" /> Màu sáng
                     </button>
                     {/* Nút Màu tối */}
                     <button
                         onClick={() => handleThemeSwitch('dark')}
-                        className={`flex-1 flex items-center justify-center p-2 text-sm font-medium rounded-lg transition-all border ${
-                            isDarkMode 
-                                ? 'bg-red-600 text-white border-red-600 shadow-md' 
-                                : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
-                        }`}
+                        className={`flex-1 flex items-center justify-center p-2 text-sm font-medium rounded-lg transition-all border ${isDarkMode
+                            ? 'bg-red-600 text-white border-red-600 shadow-md'
+                            : 'bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
+                            }`}
                     >
                         <Moon className="w-4 h-4 mr-1" /> Màu tối
                     </button>
                 </div>
             </div>
-            
+
             {/* Link xem trang đầy đủ */}
             <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 text-center">
                 <Link to="/categories" onClick={onClose} className="text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 transition duration-150">

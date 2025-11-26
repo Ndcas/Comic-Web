@@ -70,7 +70,8 @@ async function truyenTheoTheLoai(req, res) {
         return res.json({
             trangHienTai: result.data.page,
             trangToiDa: result.data.maxPage,
-            truyens: result.data.truyenTheoTheLoai
+            truyens: result.data.truyenTheoTheLoai,
+            theLoai: result.data.theLoai
         });
     } catch (error) {
         return res.status(500).json({ error: 'Lỗi hệ thống' });

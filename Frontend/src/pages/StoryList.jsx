@@ -5,26 +5,28 @@ import ComicCard from '../components/ComicCard';
 import Pagination from '../components/Pagination';
 import HeaderBar from '../components/HeaderBar';
 import { FaSearch, FaFire, FaFeather, FaExclamationCircle, FaList, FaTag } from 'react-icons/fa';
+import { get, post } from '../utils/request';
 
 // CẤU HÌNH API
 // 1. API_BASE_URL: Chỉ chứa Giao thức, Domain và Port.
-const API_BASE_URL = 'http://localhost:8080';
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 // 2. API_PREFIX: Chứa tiền tố định tuyến (route) chung của API, ví dụ: /api/v1 hoặc /truyen
 // Giữ nguyên là '/truyen'
 const API_PREFIX = '/truyen';
 
 // Giới hạn mặc định cho trang danh sách truyện lớn
-const STORY_LIMIT_PER_PAGE = 18;
+// const STORY_LIMIT_PER_PAGE = 18;
 
 function StoryList() {
     // 1. Lấy thông tin từ URL
     const location = useLocation();
     // Lấy keyword từ param, nếu không có thì lấy từ state (khi điều hướng)
-    const { keyword: paramKeyword, genreName } = useParams();
+    const { keyword: paramKeyword, TLID } = useParams();
 
     // Lấy keyword từ location.state, nếu có, ưu tiên hơn cho các trường hợp tìm kiếm từ header/chỗ khác
     const keyword = location.state?.keyword || paramKeyword;
 
+    const [genreName, setGenreName] = useState('');
     const [comics, setComics] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [maxPages, setMaxPages] = useState(1);
@@ -54,10 +56,10 @@ function StoryList() {
             title = "Truyện Mới Cập Nhật";
             path = '/truyenMoi';
             icon = FaFeather;
-        } else if (pathname === '/hot') {
-            title = "Truyện Đang HOT Nhất";
-            path = '/truyenHot';
-            icon = FaFire;
+            // } else if (pathname === '/hot') {
+            //     title = "Truyện Đang HOT Nhất";
+            //     path = '/truyenHot';
+            //     icon = FaFire;
         } else if (pathname.includes('/genre/')) {
             // Xử lý trang Thể loại
             title = `Truyện thuộc thể loại: ${currentGenreName}`;
@@ -77,7 +79,7 @@ function StoryList() {
     const { title, endpoint, icon: Icon, isValidSearch, requiresTlid } = getPageContext(location.pathname, keyword, genreName);
 
     // 2. Hàm Fetch Dữ Liệu Chung (Sử dụng Axios 'params')
-    const fetchStories = useCallback(async (page, currentEndpoint, currentKeyword, currentGenreName) => {
+    const fetchStories = useCallback(async (page, currentEndpoint, currentKeyword, tlid) => {
         // KIỂM TRA TÌM KIẾM HỢP LỆ
         if (!isValidSearch && currentEndpoint.includes('/truyenTheoTuKhoa')) {
             setComics([]);
@@ -89,7 +91,7 @@ function StoryList() {
         }
 
         // KIỂM TRA THỂ LOẠI (Cần TLID thay vì GenreName)
-        if (requiresTlid && isNaN(parseInt(currentGenreName))) {
+        if (requiresTlid && isNaN(parseInt(TLID))) {
             setComics([]);
             setMaxPages(1);
             setCurrentPage(1);
@@ -103,7 +105,7 @@ function StoryList() {
         setError(null);
 
         const requestParams = {
-            limit: STORY_LIMIT_PER_PAGE,
+            // limit: STORY_LIMIT_PER_PAGE,
             page: page, // ĐẢM BẢO 'page' LUÔN CÓ MẶT
         };
 
@@ -115,20 +117,38 @@ function StoryList() {
         // Thêm TLID nếu đang ở trang thể loại
         if (currentEndpoint.includes('/truyenTheoTheLoai')) {
             // Backend controller yêu cầu TLID, nên ta giả định genreName hiện tại là TLID
-            requestParams.TLID = parseInt(currentGenreName);
+            requestParams.TLID = parseInt(tlid);
         }
 
         // Xây dựng URL hoàn chỉnh
-        const fullUrl = `${API_BASE_URL}${currentEndpoint}`;
+        const fullUrl = `${VITE_BACKEND_URL}${currentEndpoint}`;
 
         try {
+            let url = new URL(fullUrl);
+            for (let key in requestParams) {
+                url.searchParams.append(key, requestParams[key]);
+            }
+            let response = null;
+            if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
+                response = await get(url, false, true);
+            } else {
+                response = await get(url);
+            }
+            let data = await response.json();
+            if (!response.ok) {
+                return new Error(data.error);
+            }
             // Axios sẽ tự động nối requestParams vào URL
-            const response = await axios.get(fullUrl, { params: requestParams });
-            const data = response.data.data || response.data;
+            // const response = await axios.get(fullUrl, { params: requestParams });
+            // const data = response.data.data || response.data;
 
             // Xử lý dữ liệu trả về từ API
             // Backend trả về `truyens` cho tất cả các endpoint (truyenMoi, truyenTheoTuKhoa, truyenTheoTheLoai)
-            const fetchedComics = data.truyens || data.results || [];
+            // const fetchedComics = data.truyens || data.results || [];
+            if (data.theLoai) {
+                setGenreName(data.theLoai.TenTheLoai);
+            }
+            const fetchedComics = data.truyens;
 
             // Xử lý trường hợp không có kết quả
             if (fetchedComics.length === 0) {
@@ -148,17 +168,18 @@ function StoryList() {
                 setError(null); // Reset lỗi sau khi tải thành công
             }
 
-        } catch (err) {
-            // Lấy URL thực tế mà Axios đã tạo để báo lỗi chi tiết
-            const failedUrl = `${fullUrl}?${new URLSearchParams(requestParams).toString()}`;
-            console.error("Lỗi tải danh sách truyện:", err);
+        } catch (error) {
+            // // Lấy URL thực tế mà Axios đã tạo để báo lỗi chi tiết
+            // const failedUrl = `${fullUrl}?${new URLSearchParams(requestParams).toString()}`;
+            // console.error("Lỗi tải danh sách truyện:", err);
 
-            // THÔNG BÁO LỖI RÕ RÀNG VỀ 404
-            if (axios.isAxiosError(err) && err.response && err.response.status === 404) {
-                setError(`LỖI 404 (NOT FOUND): Server không tìm thấy endpoint "${currentEndpoint}". Vui lòng kiểm tra lại định tuyến Backend. API đã gọi: ${failedUrl}`);
-            } else {
-                setError(`Lỗi kết nối API: ${err.message}. API đã gọi: ${failedUrl}`);
-            }
+            // // THÔNG BÁO LỖI RÕ RÀNG VỀ 404
+            // if (axios.isAxiosError(err) && err.response && err.response.status === 404) {
+            //     setError(`LỖI 404 (NOT FOUND): Server không tìm thấy endpoint "${currentEndpoint}". Vui lòng kiểm tra lại định tuyến Backend. API đã gọi: ${failedUrl}`);
+            // } else {
+            //     setError(`Lỗi kết nối API: ${err.message}. API đã gọi: ${failedUrl}`);
+            // }
+            setError(error.message || 'Lỗi hệ thống');
         } finally {
             setLoading(false);
         }
@@ -168,12 +189,12 @@ function StoryList() {
     useEffect(() => {
         // Reset về trang 1 và tải lại khi đường dẫn/keyword/genreName thay đổi
         setCurrentPage(1);
-        fetchStories(1, endpoint, keyword, genreName);
-    }, [endpoint, keyword, genreName, fetchStories]);
+        fetchStories(1, endpoint, keyword, TLID);
+    }, [endpoint, keyword, TLID, fetchStories]);
 
     const handlePageChange = (page) => {
         setCurrentPage(page);
-        fetchStories(page, endpoint, keyword, genreName); // Tải dữ liệu cho trang mới
+        fetchStories(page, endpoint, keyword, TLID); // Tải dữ liệu cho trang mới
         window.scrollTo(0, 0); // Cuộn lên đầu trang khi chuyển trang
     };
 

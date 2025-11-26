@@ -1,55 +1,58 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, TrendingUp, Sparkles, AlertTriangle, List, Star } from 'lucide-react';
+import { get, post } from '../utils/request';
+
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // --- MOCK DATA (Thay thế bằng API calls sau) ---
-const mockHotStories = [
-    { id: 101, title: 'Đế Tôn Truyền Kỳ', author: 'Minh Nguyệt', chapters: 560, status: 'Đang ra', cover: 'https://placehold.co/400x600/1e293b/ffffff?text=De+Ton', type: 'HOT', genre: 'Tiên Hiệp' },
-    { id: 102, title: 'Hôn Nhân Bất Đắc Dĩ', author: 'Hạ Vy', chapters: 92, status: 'Hoàn thành', cover: 'https://placehold.co/400x600/8b5cf6/ffffff?text=Hon+Nhan', type: 'HOT', genre: 'Ngôn Tình' },
-    { id: 103, title: 'Thế Giới Võ Hiệp', author: 'Phong Vân', chapters: 1200, status: 'Đang ra', cover: 'https://placehold.co/400x600/ef4444/ffffff?text=Vo+Hiep', type: 'HOT', genre: 'Kiếm Hiệp' },
-    { id: 104, title: 'Phù Thủy Tái Sinh', author: 'An An', chapters: 35, status: 'Đang ra', cover: 'https://placehold.co/400x600/f59e0b/ffffff?text=Phu+Thuy', type: 'NEW', genre: 'Huyền Huyễn' },
-];
+// const mockHotStories = [
+//     { id: 101, title: 'Đế Tôn Truyền Kỳ', author: 'Minh Nguyệt', chapters: 560, status: 'Đang ra', cover: 'https://placehold.co/400x600/1e293b/ffffff?text=De+Ton', type: 'HOT', genre: 'Tiên Hiệp' },
+//     { id: 102, title: 'Hôn Nhân Bất Đắc Dĩ', author: 'Hạ Vy', chapters: 92, status: 'Hoàn thành', cover: 'https://placehold.co/400x600/8b5cf6/ffffff?text=Hon+Nhan', type: 'HOT', genre: 'Ngôn Tình' },
+//     { id: 103, title: 'Thế Giới Võ Hiệp', author: 'Phong Vân', chapters: 1200, status: 'Đang ra', cover: 'https://placehold.co/400x600/ef4444/ffffff?text=Vo+Hiep', type: 'HOT', genre: 'Kiếm Hiệp' },
+//     { id: 104, title: 'Phù Thủy Tái Sinh', author: 'An An', chapters: 35, status: 'Đang ra', cover: 'https://placehold.co/400x600/f59e0b/ffffff?text=Phu+Thuy', type: 'NEW', genre: 'Huyền Huyễn' },
+// ];
 
-const mockNewStories = [
-    { id: 201, title: 'Bí Mật Của Nàng', author: 'Linh Chi', lastChapter: 5, lastUpdated: '10 phút trước', genre: 'Đô Thị' },
-    { id: 202, title: 'Dị Giới Du Ký', author: 'Quang Đại', lastChapter: 12, lastUpdated: '30 phút trước', genre: 'Huyền Huyễn' },
-    { id: 203, title: 'Hoàng Hậu Không Gian', author: 'Tiểu Mai', lastChapter: 1, lastUpdated: '1 giờ trước', genre: 'Xuyên Không' },
-    { id: 204, title: 'Người Ngoài Hành Tinh', author: 'Thanh Hà', lastChapter: 50, lastUpdated: '2 giờ trước', genre: 'Khoa Huyễn' },
-    { id: 205, title: 'Thiên Tài Trở Về', author: 'Văn Chung', lastChapter: 120, lastUpdated: '3 giờ trước', genre: 'Đô Thị' },
-    { id: 206, title: 'Đại Chiến Tam Giới', author: 'Tiểu Long', lastChapter: 50, lastUpdated: '3 giờ trước', genre: 'Huyền Huyễn' },
-    { id: 207, title: 'Kiếm Khách Cô Độc', author: 'Lã Bố', lastChapter: 10, lastUpdated: '4 giờ trước', genre: 'Kiếm Hiệp' },
-];
+// const mockNewStories = [
+//     { id: 201, title: 'Bí Mật Của Nàng', author: 'Linh Chi', lastChapter: 5, lastUpdated: '10 phút trước', genre: 'Đô Thị' },
+//     { id: 202, title: 'Dị Giới Du Ký', author: 'Quang Đại', lastChapter: 12, lastUpdated: '30 phút trước', genre: 'Huyền Huyễn' },
+//     { id: 203, title: 'Hoàng Hậu Không Gian', author: 'Tiểu Mai', lastChapter: 1, lastUpdated: '1 giờ trước', genre: 'Xuyên Không' },
+//     { id: 204, title: 'Người Ngoài Hành Tinh', author: 'Thanh Hà', lastChapter: 50, lastUpdated: '2 giờ trước', genre: 'Khoa Huyễn' },
+//     { id: 205, title: 'Thiên Tài Trở Về', author: 'Văn Chung', lastChapter: 120, lastUpdated: '3 giờ trước', genre: 'Đô Thị' },
+//     { id: 206, title: 'Đại Chiến Tam Giới', author: 'Tiểu Long', lastChapter: 50, lastUpdated: '3 giờ trước', genre: 'Huyền Huyễn' },
+//     { id: 207, title: 'Kiếm Khách Cô Độc', author: 'Lã Bố', lastChapter: 10, lastUpdated: '4 giờ trước', genre: 'Kiếm Hiệp' },
+// ];
 
-const mockRanking = [
-    { id: 301, title: 'Tuyệt Thế Kiếm Thần', views: '2.5M', color: 'text-red-600' },
-    { id: 302, title: 'Nữ Hoàng Mafia', views: '1.8M', color: 'text-orange-500' },
-    { id: 303, title: 'Xuyên Không Vô Hạn', views: '1.2M', color: 'text-yellow-500' },
-    { id: 304, title: 'Cổ Trùng Chi Lực', views: '950K', color: 'text-gray-600' },
-    { id: 305, title: 'Công Tử Hoàn Khố', views: '700K', color: 'text-gray-600' },
-];
+// const mockRanking = [
+//     { id: 301, title: 'Tuyệt Thế Kiếm Thần', views: '2.5M', color: 'text-red-600' },
+//     { id: 302, title: 'Nữ Hoàng Mafia', views: '1.8M', color: 'text-orange-500' },
+//     { id: 303, title: 'Xuyên Không Vô Hạn', views: '1.2M', color: 'text-yellow-500' },
+//     { id: 304, title: 'Cổ Trùng Chi Lực', views: '950K', color: 'text-gray-600' },
+//     { id: 305, title: 'Công Tử Hoàn Khố', views: '700K', color: 'text-gray-600' },
+// ];
 
 // --- COMPONENT: HIỂN THỊ THẺ TRUYỆN (Đã tối ưu hóa) ---
 const StoryCard = ({ story }) => (
-    <Link to={`/story/${story.id}`} className="block group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
+    <Link to={`/story/${story.TID}`} className="block group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
         <div className="relative overflow-hidden">
             <img
-                src={story.cover}
-                alt={story.title}
+                src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia || 'default.jpg'}`}
+                alt={story.TenTruyen}
                 // Chiều cao ảnh bìa được giảm bớt để card gọn hơn
                 className="w-full h-56 object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x560/500000/ffffff?text=NO+COVER"; }}
             />
             {/* Tag trạng thái nổi bật hơn */}
-            <span className={`absolute top-0 left-0 p-1 text-xs font-bold text-white ${story.status === 'Hoàn thành' ? 'bg-green-600' : 'bg-red-600'}`}>
-                {story.status}
+            <span className={`absolute top-0 left-0 p-1 text-xs font-bold text-white ${story.TrangThai == 0 ? 'bg-green-600' : 'bg-red-600'}`}>
+                {story.TrangThai == 0 ? 'Hoàn thành' : 'Còn tiếp'}
             </span>
         </div>
         <div className="p-3">
-            <h3 className="text-base font-bold text-gray-800 truncate group-hover:text-red-600 transition duration-200" title={story.title}>
-                {story.title}
+            <h3 className="text-base font-bold text-gray-800 truncate group-hover:text-red-600 transition duration-200" title={story.TenTruyen}>
+                {story.TenTruyen}
             </h3>
-            <p className="text-xs text-gray-500 mt-1">Tác giả: <span className="font-medium text-gray-700">{story.author}</span></p>
-            <p className="text-xs text-gray-400 mt-1">Chương: {story.chapters} | {story.genre}</p>
+            {/* <p className="text-xs text-gray-500 mt-1">Tác giả: <span className="font-medium text-gray-700">{story.TacGia}</span></p>
+            <p className="text-xs text-gray-400 mt-1">Chương: {story.chapters} | {story.genre}</p> */}
         </div>
     </Link>
 );
@@ -92,19 +95,19 @@ const NewChapterList = ({ list }) => (
         </h3>
         <ul className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar"> {/* Thêm scrollbar */}
             {list.map((item, index) => (
-                <li key={item.id} className="border-b border-gray-100 pb-2 last:border-b-0">
-                    <Link to={`/story/${item.id}`} className="flex justify-between items-start hover:bg-gray-50 p-2 rounded-lg transition duration-200">
+                <li key={index} className="border-b border-gray-100 pb-2 last:border-b-0">
+                    <Link to={`/story/${item.TID}`} className="flex justify-between items-start hover:bg-gray-50 p-2 rounded-lg transition duration-200">
                         <div className="flex-1 min-w-0 pr-4">
-                            <p className="font-semibold text-gray-800 hover:text-red-600 truncate text-base" title={item.title}>
-                                {item.title}
+                            <p className="font-semibold text-gray-800 hover:text-red-600 truncate text-base" title={item.TenTruyen}>
+                                {item.TenTruyen}
                             </p>
-                            <p className="text-xs text-gray-500 mt-1">
+                            {/* <p className="text-xs text-gray-500 mt-1">
                                 <span className="font-medium text-blue-600 hover:text-blue-800">Ch. {item.lastChapter}</span> • {item.genre}
-                            </p>
+                            </p> */}
                         </div>
-                        <span className="text-xs text-gray-400 ml-4 whitespace-nowrap text-right pt-1">
+                        {/* <span className="text-xs text-gray-400 ml-4 whitespace-nowrap text-right pt-1">
                             {item.lastUpdated}
-                        </span>
+                        </span> */}
                     </Link>
                 </li>
             ))}
@@ -126,25 +129,45 @@ function Home() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const fetchData = useCallback(() => {
+    const fetchData = async () => {
         setIsLoading(true);
         setError(null);
         try {
-            setTimeout(() => {
-                setHotStories(mockHotStories);
-                setNewChapters(mockNewStories);
-                setRanking(mockRanking); // Thêm data Ranking
-                setIsLoading(false);
-            }, 500);
+            // setTimeout(() => {
+            //     setHotStories(mockHotStories);
+            //     setNewChapters(mockNewStories);
+            //     setRanking(mockRanking); // Thêm data Ranking
+            //     setIsLoading(false);
+            // }, 500);
+            let truyenHotRequest = null;
+            let truyenMoiRequest = null;
+            if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
+                truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`, false, true);
+                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoi?page=1`, false, true);
+            } else {
+                truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`);
+                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoi?page=1`);
+            }
+            let truyenHot = await truyenHotRequest.json();
+            if (!truyenHotRequest.ok) {
+                throw new Error(truyenHot.error);
+            }
+            let truyenMoi = await truyenMoiRequest.json();
+            if (!truyenMoiRequest.ok) {
+                throw new Error(truyenMoi.error);
+            }
+            setHotStories(truyenHot.truyens);
+            setNewChapters(truyenMoi.truyens);
+            setIsLoading(false);
         } catch (err) {
-            setError('Không thể tải dữ liệu trang chủ.');
+            setError(err.message || 'Lỗi hệ thống');
             setIsLoading(false);
         }
-    }, []);
+    }
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, []);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-50 min-h-screen"> {/* Thêm bg-gray-50 cho nền nhạt */}
@@ -166,7 +189,7 @@ function Home() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                     {/* KHU VỰC CHÍNH: TRUYỆN HOT & CẬP NHẬT MỚI (lg:col-span-2) */}
-                    <div className="lg:col-span-2 space-y-8">
+                    <div className="lg:col-span-3 space-y-8">
 
                         {/* Block: TRUYỆN HOT */}
                         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
@@ -174,15 +197,15 @@ function Home() {
                                 <h2 className="text-2xl font-extrabold text-gray-800 flex items-center">
                                     <TrendingUp className="text-red-600 mr-2" size={24} /> TRUYỆN HOT ĐỀ CỬ
                                 </h2>
-                                <Link to="/hot" className="text-red-600 hover:text-red-700 font-semibold flex items-center text-sm">
+                                {/* <Link to="/hot" className="text-red-600 hover:text-red-700 font-semibold flex items-center text-sm">
                                     Xem Tất Cả <ChevronRight size={18} />
-                                </Link>
+                                </Link> */}
                             </div>
 
                             {/* Danh sách Truyện Hot dạng Card */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {hotStories.map(story => (
-                                    <StoryCard key={story.id} story={story} />
+                                {hotStories.map((story, index) => (
+                                    <StoryCard key={index} story={story} />
                                 ))}
                             </div>
                         </div>
@@ -193,17 +216,17 @@ function Home() {
                     </div>
 
                     {/* KHU VỰC SIDEBAR (lg:col-span-1) */}
-                    <div className="lg:col-span-1 space-y-8">
+                    {/* <div className="lg:col-span-1 space-y-8"> */}
 
-                        {/* Bảng Xếp Hạng Mới */}
-                        <RankingSidebar rankingList={ranking} />
+                    {/* Bảng Xếp Hạng Mới */}
+                    {/* <RankingSidebar rankingList={ranking} /> */}
 
-                        {/* Thêm một phần phụ (Placeholder) */}
-                        <div className="bg-gray-200 p-4 rounded-xl shadow-inner text-center border border-gray-300">
+                    {/* Thêm một phần phụ (Placeholder) */}
+                    {/* <div className="bg-gray-200 p-4 rounded-xl shadow-inner text-center border border-gray-300">
                             <h3 className="font-bold text-gray-800 mb-2">Banner Quảng Cáo Lớn</h3>
                             <p className="text-sm text-gray-600 h-32 flex items-center justify-center">300x600</p>
                         </div>
-                    </div>
+                    </div> */}
                 </div>
             )}
         </div>

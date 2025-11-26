@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { post } from "../utils/request";
+
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function Login() {
   const navigate = useNavigate();
@@ -15,24 +18,33 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await fetch("http://localhost:8080/nguoiDung/dangNhap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          Email: form.email,
-          MatKhau: form.password,
-          ghiNho: true
-        }),
-        credentials: "include"
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Đăng nhập thất bại");
-
-      localStorage.setItem("token", data.token);
-      navigate("/");
+      let res = await post(`${VITE_BACKEND_URL}/nguoiDung/dangNhap`, 'application/json', JSON.stringify({
+        Email: form.email,
+        MatKhau: form.password,
+        ghiNho: true
+      }));
+      let data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("role", "NguoiDung");
+        localStorage.setItem("exp", data.hanDung);
+        navigate("/");
+        return;
+      }
+      res = await post(`${VITE_BACKEND_URL}/admin/dangNhap`, 'application/json', JSON.stringify({
+        Email: form.email,
+        MatKhau: form.password
+      }), true);
+      data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error);
+      }
+      localStorage.setItem("token", data.accessToken);
+      localStorage.setItem("role", "Admin");
+      localStorage.setItem("exp", data.hanDung);
+      // Xử lý chuyển tới trang quản trị chưa có
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Lỗi hệ thống');
     }
   };
 

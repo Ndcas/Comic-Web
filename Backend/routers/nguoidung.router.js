@@ -13,7 +13,7 @@ router.post('/yeuCauOTPDangKy', controller.yeuCauOTPDangKy);
 router.post('/dangKy', controller.dangKy);
 
 // Yêu cầu Email, MatKhau, ghiNho (checkbox ghi nhớ đăng nhập hay không) trong body 
-// => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), accessToken, refeshToken (trong cookie), ghiNho (trong cookie nếu người dùng chọn ghi nhớ đăng nhập)
+// => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), token (access token), refeshToken (trong cookie), ghiNho (trong cookie nếu người dùng chọn ghi nhớ đăng nhập)
 router.post('/dangNhap', controller.dangNhap);
 
 // Yêu cầu có refreshToken của NguoiDung trong cookie

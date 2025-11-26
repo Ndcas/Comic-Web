@@ -4,13 +4,13 @@ import axios from 'axios';
 import ComicCard from '../components/ComicCard';
 import Pagination from '../components/Pagination';
 import { FaBookmark, FaHashtag, FaExclamationCircle } from 'react-icons/fa';
+import { get } from '../utils/request';
 
 
-const API_BASE_URL = 'http://localhost:8080/truyen';
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function CategoryComics() {
     const { TLID } = useParams();
-
     const [categoryName, setCategoryName] = useState('');
     const [comics, setComics] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -24,16 +24,26 @@ function CategoryComics() {
         try {
             // Giả định API trả về cả tên thể loại, danh sách truyện và phân trang
             // Endpoint ví dụ: /truyenTheoTheLoai?TLID=1&page=1
-            const response = await axios.get(`${API_BASE_URL}/truyenTheoTheLoai?TLID=${TLID}&page=${page}`);
+            // const response = await axios.get(`${API_BASE_URL}/truyenTheoTheLoai?TLID=${TLID}&page=${page}`);
 
-            const data = response.data.data || response.data; // Cấu trúc dữ liệu trả về
+            // const data = response.data.data || response.data; // Cấu trúc dữ liệu trả về
+            let response = null;
+            if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
+                response = await get(`${VITE_BACKEND_URL}/truyen/truyenTheoTheLoai?TLID=${TLID}&page=${page}`, false, true);
+            } else {
+                response = await get(`${VITE_BACKEND_URL}/truyen/truyenTheoTheLoai?TLID=${TLID}&page=${page}`);
+            }
+            let data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error);
+            }
 
             // Điều chỉnh cách đọc dữ liệu:
-            setCategoryName(data.TenTheLoai || 'Thể loại không tên');
-            setComics(data.truyens || []);
-            setCurrentPage(data.trangHienTai || page);
-            setMaxPages(data.trangToiDa || 1);
-
+            // setCategoryName(data.TenTheLoai || 'Thể loại không tên');
+            setComics(data.truyens);
+            setCurrentPage(data.trangHienTai);
+            setMaxPages(data.trangToiDa);
+            setCategoryName(data.theLoai.TenTheLoai);
         } catch (err) {
             console.error("Lỗi tải truyện theo thể loại:", err);
             setError("Không thể tải truyện theo thể loại này.");

@@ -18,7 +18,7 @@ const YeuThich = require('../models/yeuthich.model');
 async function timBaoCaoBinhLuanChuaXuLy() {
     try {
         let result = await BaoCaoBinhLuan.findAll({
-            where: { DaXuyLy: 0 },
+            where: { DaXuLy: 0 },
             include: { model: BinhLuan }
         });
         return {
@@ -34,7 +34,7 @@ async function timBaoCaoBinhLuanChuaXuLy() {
 async function timBaoCaoTruyenChuaXuLy() {
     try {
         let result = await BaoCaoTruyen.findAll({
-            where: { DaXuyLy: 0 }
+            where: { DaXuLy: 0 }
         });
         return {
             ok: true,
@@ -51,7 +51,7 @@ async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
         let baoCao = await BaoCaoBinhLuan.findOne({
             where: {
                 BCBLID: bcblid,
-                DaXuyLy: 0
+                DaXuLy: 0
             }
         });
         if (!baoCao) {
@@ -101,7 +101,7 @@ async function xuLyBaoCaoTruyen(bctid, mode = 0) {
         let baoCao = await BaoCaoTruyen.findOne({
             where: {
                 BCTID: bctid,
-                DaXuyLy: 0
+                DaXuLy: 0
             }
         });
         if (!baoCao) {
