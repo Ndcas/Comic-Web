@@ -316,6 +316,50 @@ async function thongTinChuongTruyenAdmin(req, res) {
     }
 }
 
+async function danhSachTruyenDaDang(req, res) {
+    try {
+        let result = await truyenService.timTruyenDaDang(req.authorization.NDID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ truyens: result.data.truyens });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function chiTietTruyenDaDang(req, res) {
+    let TID = parseInt(req.body.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.chiTietTruyenDaDang(req.authorization.NDID, TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ truyen: result.data.truyen });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function soDiemCanDeXoaTruyen(req, res) {
+    let TID = parseInt(req.body.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.tinhSoDiemCanDeXoaTruyen(TID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ diem: result.data.diem });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 async function xoaTruyenDaDang(req, res) {
     let TID = parseInt(req.body.TID);
     if (!TID) {
@@ -412,6 +456,22 @@ async function themChuongTruyen(req, res) {
     }
 }
 
+async function chiTietChuongDaDang(req, res) {
+    let CTID = parseInt(req.body.CTID);
+    if (!CTID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.chiTietChuongDaDang(req.authorization.NDID, CTID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ chuongTruyen: result.data.chuongTruyen });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 async function capNhatGiaChuongTruyen(req, res) {
     let { CTID, GiaChuong } = req.body;
     CTID = parseInt(CTID);
@@ -428,6 +488,22 @@ async function capNhatGiaChuongTruyen(req, res) {
             return res.status(result.status).json({ error: result.error });
         }
         return res.json({ message: 'Cập nhật giá chương truyện thành công' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function soDiemCanDeXoaChuongTruyen(req, res) {
+    let CTID = parseInt(req.body.CTID);
+    if (!CTID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.tinhSoDiemCanDeXoaChuongTruyen(CTID);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ diem: result.data.diem });
     } catch (error) {
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
@@ -546,10 +622,15 @@ module.exports = {
     duyetTruyen,
     thongTinTruyenAdmin,
     thongTinChuongTruyenAdmin,
+    danhSachTruyenDaDang,
+    chiTietTruyenDaDang,
+    soDiemCanDeXoaTruyen,
     xoaTruyenDaDang,
     capNhatTruyen,
     themChuongTruyen,
+    chiTietChuongDaDang,
     capNhatGiaChuongTruyen,
+    soDiemCanDeXoaChuongTruyen,
     xoaChuongTruyen,
     moKhoaChuongTruyen,
     tomTatTruyen,

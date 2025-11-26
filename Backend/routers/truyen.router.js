@@ -59,6 +59,18 @@ router.get('/thongTinTruyenAdmin', adminFilter.verifyAccessToken, controller.tho
 // => chuongTruyen (ChuongTruyen có join với HinhAnh)
 router.get('/thongTinChuongTruyenAdmin', adminFilter.verifyAccessToken, controller.thongTinChuongTruyenAdmin);
 
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]
+// => truyens (mảng Truyen)
+router.get('/danhSachTruyenDaDang', nguoiDungFilter.verifyAccessToken, controller.danhSachTruyenDaDang);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token], TID
+// => truyen (Truyen có join với ChuongTruyen)
+router.get('/chiTietTruyenDaDang', nguoiDungFilter.verifyAccessToken, controller.chiTietTruyenDaDang);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token], TID
+// => diem (số điểm cần để xóa truyện)
+router.get('/soDiemCanDeXoaTruyen', nguoiDungFilter.verifyAccessToken, controller.soDiemCanDeXoaTruyen);
+
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID trong body
 router.post('/xoaTruyenDaDang', nguoiDungFilter.verifyAccessToken, controller.xoaTruyenDaDang);
 
@@ -68,8 +80,16 @@ router.post('/capNhatTruyen', nguoiDungFilter.verifyAccessToken, controller.capN
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID, TenChuongTruyen, GiaChuong, HinhAnh (mảng file hình ảnh phù hợp với filter phía trong middleware) trong body
 router.post('/themChuongTruyen', nguoiDungFilter.verifyAccessToken, uploadHinhAnh, controller.themChuongTruyen);
 
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID
+// => chuongTruyen (ChuongTruyen có join với HinhAnh)
+router.get('/chiTietChuongDaDang', nguoiDungFilter.verifyAccessToken, controller.chiTietChuongDaDang);
+
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID, GiaChuong trong body
 router.post('/capNhatGiaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.capNhatGiaChuongTruyen);
+
+// Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID
+// => diem (số điểm cần để xóa chương truyện)
+router.get('/soDiemCanDeXoaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.soDiemCanDeXoaChuongTruyen);
 
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', CTID trong body
 router.post('/xoaChuongTruyen', nguoiDungFilter.verifyAccessToken, controller.xoaChuongTruyen);

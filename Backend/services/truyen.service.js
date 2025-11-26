@@ -803,6 +803,32 @@ async function timTruyenDaDang(ndid) {
     }
 }
 
+async function chiTietTruyenDaDang(ndid, tid) {
+    try {
+        let truyen = await Truyen.findOne({
+            where: {
+                NDID: ndid,
+                TID: tid
+            },
+            include: { model: ChuongTruyen }
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
+        return {
+            ok: true,
+            data: { truyen: truyen }
+        }
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin truyện đã đăng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 async function tinhSoDiemCanDeXoaTruyen(tid) {
     try {
         let truyen = await Truyen.findByPk(tid);
@@ -1054,6 +1080,33 @@ async function themChuongTruyen(ndid, tid, tenChuongTruyen, giaChuong, fileHinhA
     }
 }
 
+async function chiTietChuongDaDang(ndid, ctid) {
+    try {
+        let chuongTruyen = await ChuongTruyen.findOne({
+            where: { CTID: ctid },
+            include: [{
+                model: Truyen,
+                required: true,
+                where: { NDID: ndid }
+            }, { model: HinhAnh }]
+        });
+        if (!chuongTruyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy chương truyện được yêu cầu'
+            };
+        }
+        return {
+            ok: true,
+            data: { chuongTruyen: chuongTruyen }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy chi tiết chương truyện đã đăng', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 async function capNhatGiaChuongTruyen(ndid, ctid, giaChuong) {
     try {
         let chuongTruyen = await ChuongTruyen.findOne({
@@ -1078,6 +1131,22 @@ async function capNhatGiaChuongTruyen(ndid, ctid, giaChuong) {
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi thêm chương truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function tinhSoDiemCanDeXoaChuongTruyen(ctid) {
+    try {
+        let diem = await ChuongDaMoKhoa.sum('Diem', {
+            where: { CTID: ctid }
+        });
+        diem = diem || 0;
+        return {
+            ok: true,
+            data: { diem: diem }
+        }
+    } catch (error) {
+        logger.error('Lỗi khi tính số điểm cần để xóa chương truyện', error);
         throw new Error('Lỗi hệ thống');
     }
 }
@@ -1148,6 +1217,13 @@ async function xoaChuongTruyen(ndid, ctid) {
         });
         return { ok: true };
     } catch (error) {
+        if (error.message == 'Không đủ điểm') {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Không đủ điểm để xóa chương truyện'
+            };
+        }
         logger.error('Lỗi khi xóa chương truyện', error);
         throw new Error('Lỗi hệ thống');
     }
@@ -1375,11 +1451,14 @@ module.exports = {
     layThongTinTruyenAdmin,
     layThongTinChuongTruyenAdmin,
     timTruyenDaDang,
+    chiTietTruyenDaDang,
     tinhSoDiemCanDeXoaTruyen,
     xoaTruyenDaDang,
     capNhatTruyen,
     themChuongTruyen,
+    chiTietChuongDaDang,
     capNhatGiaChuongTruyen,
+    tinhSoDiemCanDeXoaChuongTruyen,
     xoaChuongTruyen,
     moKhoaChuongTruyen,
     layTomTatTruyen,
