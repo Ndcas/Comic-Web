@@ -29,7 +29,13 @@ app.use(cookieParser(COOKIE_SECRET));
 
 const limiter = expressRateLimit({
     windowMs: 60000,
-    max: 120
+    max: 120,
+    skip: (req, res) => {
+        if (req.originalUrl.startsWith('/assets')) {
+            return true;
+        }
+        return false;
+    }
 });
 
 app.use(limiter);
@@ -37,7 +43,13 @@ app.use(limiter);
 const slower = expressSlowDown({
     windowMs: 60000,
     delayAfter: 60,
-    delayMs: () => 300
+    delayMs: () => 300,
+    skip: (req, res) => {
+        if (req.originalUrl.startsWith('/assets')) {
+            return true;
+        }
+        return false;
+    }
 });
 
 app.use(slower);
@@ -46,6 +58,8 @@ app.use(cors({
     origin: [FRONTEND_URL, 'http://127.0.0.1:5500'],
     credentials: true
 }));
+
+app.use('/assets', express.static('assets'));
 
 app.use('/admin', adminRouter);
 
