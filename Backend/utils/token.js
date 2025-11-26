@@ -9,7 +9,7 @@ function signToken(payload, isRefresh = false) {
     let key = isRefresh ? REFRESH_KEY : ACCESS_KEY;
     let ttl = isRefresh ? REFRESH_TOKEN_TTL_MS : ACCESS_TOKEN_TTL_MS;
     return jsonwebtoken.sign(payload, key, {
-        expiresIn: ttl
+        expiresIn: ttl / 1000
     });
 }
 

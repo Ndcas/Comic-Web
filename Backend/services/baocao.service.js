@@ -1,12 +1,12 @@
 const { Op } = require('sequelize');
 const { deleteFromCachePrefix } = require('../services/cache.service');
+const { deleteFile } = require('../utils/file');
 const BaoCaoBinhLuan = require('../models/baocaobinhluan.model');
 const BaoCaoTruyen = require('../models/baocaotruyen.model');
 const BinhLuan = require('../models/binhluan.model');
 const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
-const fs = require('fs/promises');
 const HinhAnh = require('../models/hinhanh.model');
 const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
@@ -185,18 +185,10 @@ async function xuLyBaoCaoTruyen(bctid, mode = 0) {
         });
         if (mode == 1 || mode == 2) {
             fileHinhAnhs.forEach(async (item) => {
-                try {
-                    await fs.unlink(`./assets/images/${item}`);
-                } catch (error) {
-                    logger.error('Lỗi khi xóa file hình ảnh', error);
-                }
+                await deleteFile(`./assets/images/${item}`);
             });
             if (fileAnhBia) {
-                try {
-                    await fs.unlink(`./assets/covers/${fileAnhBia}`);
-                } catch (error) {
-                    logger.error('Lỗi khi xóa file ảnh bìa', error);
-                }
+                await deleteFile(`./assets/covers/${fileAnhBia}`);
             }
         }
         return { ok: true };

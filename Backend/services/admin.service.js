@@ -6,8 +6,6 @@ const BaoCaoBinhLuan = require('../models/baocaobinhluan.model');
 const BaoCaoTruyen = require('../models/baocaotruyen.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
-const LichSuDiem = require('../models/lichsudiem.model');
-const LichSuDoc = require('../models/lichsudoc.model');
 const logger = require('../utils/logger');
 const NguoiDung = require('../models/nguoidung.model');
 const Truyen = require('../models/truyen.model');
@@ -18,7 +16,7 @@ const PROFIT_RATIO = parseFloat(process.env.PROFIT_RATIO);
 
 async function dangNhap(email, matKhau) {
     try {
-        const admin = await Admin.findOne({
+        let admin = await Admin.findOne({
             where: { Email: email }
         });
         if (!admin || !compare(matKhau, admin.MatKhau)) {

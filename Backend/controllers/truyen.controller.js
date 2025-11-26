@@ -1,3 +1,4 @@
+const { deleteFile } = require('../utils/file');
 const truyenService = require('../services/truyen.service');
 
 async function theLoai(req, res) {
@@ -112,10 +113,24 @@ async function thongTinTruyen(req, res) {
         if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
         }
-        return res.json({
-            truyen: result.data.truyen,
-            chuongTruyens: result.data.chuongTruyens
-        });
+        return res.json({ truyen: result.data.truyen });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
+async function danhSachChuong(req, res) {
+    let token = req.header('Authorization')?.split(' ')[1];
+    let TID = parseInt(req.query.TID);
+    if (!TID) {
+        return res.status(400).json({ error: 'Thiếu thông tin' });
+    }
+    try {
+        let result = await truyenService.layDanhSachChuong(TID, token);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ chuongTruyens: result.data.chuongTruyens });
     } catch (error) {
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
@@ -142,6 +157,9 @@ async function themTruyen(req, res) {
     let { TenTruyen, MoTa, TacGia, GioiHan18Tuoi, TLIDs } = req.body;
     TenTruyen = TenTruyen?.trim();
     if (!TenTruyen) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(400).json({ error: 'Thiếu thông tin' });
     }
     MoTa = MoTa?.trim();
@@ -176,24 +194,42 @@ async function themTruyen(req, res) {
         theLoais.push(tlid);
     }
     if (!validTheLoai) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(400).json({ error: 'Có thể loại không đúng định dạng' });
     }
     if (TenTruyen.length > 200) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(400).json({ error: 'Tên truyện vượt quá 200 ký tự' });
     }
     if (MoTa && MoTa.length > 1000) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(400).json({ error: 'Mô tả vượt quá 1000 ký tự' });
     }
     if (TacGia && TacGia.length > 100) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(400).json({ error: 'Tên tác giả vượt quá 100 ký tự' });
     }
     try {
         let result = await truyenService.themTruyen(req.authorization.NDID, TenTruyen, MoTa, coverFileName, TacGia, GioiHan18Tuoi, theLoais);
         if (!result.ok) {
+            if (req.file) {
+                await deleteFile(`./assets/covers/${req.file.filename}`);
+            }
             return res.status(result.status).json({ error: result.error });
         }
         return res.json({ message: 'Đã thêm truyện và đang chờ được duyệt' });
     } catch (error) {
+        if (req.file) {
+            await deleteFile(`./assets/covers/${req.file.filename}`);
+        }
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
 }
@@ -339,24 +375,39 @@ async function themChuongTruyen(req, res) {
     let { TID, TenChuongTruyen, GiaChuong } = req.body;
     TID = parseInt(TID);
     TenChuongTruyen = TenChuongTruyen?.trim();
-    GiaChuong = parseInt(GiaChuong);
-    if (!TID || !TenChuongTruyen || !GiaChuong || req.files.length < 0) {
+    GiaChuong = parseInt(GiaChuong) || 0;
+    if (!TID || !TenChuongTruyen || req.files.length < 0) {
+        req.files.forEach(async (item) => {
+            await deleteFile(`./assets/images/${item.filename}`);
+        });
         return res.status(400).json({ error: 'Thiếu thông tin' });
     }
     if (TenChuongTruyen.length > 200) {
+        req.files.forEach(async (item) => {
+            await deleteFile(`./assets/images/${item.filename}`);
+        });
         return res.status(400).json({ error: 'Tên chương truyện vượt quá 200 ký tự' });
     }
     if (GiaChuong < 0) {
+        req.files.forEach(async (item) => {
+            await deleteFile(`./assets/images/${item.filename}`);
+        });
         return res.status(400).json({ error: 'Giá chương truyện không hợp lệ' });
     }
     let fileNames = req.files.map(item => item.filename);
     try {
         let result = await truyenService.themChuongTruyen(req.authorization.NDID, TID, TenChuongTruyen, GiaChuong, fileNames);
         if (!result.ok) {
+            req.files.forEach(async (item) => {
+                await deleteFile(`./assets/images/${item.filename}`);
+            });
             return res.status(result.status).json({ error: result.error });
         }
         return res.json({ message: 'Thêm chương truyện thành công' });
     } catch (error) {
+        req.files.forEach(async (item) => {
+            await deleteFile(`./assets/images/${item.filename}`);
+        });
         return res.status(500).json({ error: 'Lỗi hệ thống' });
     }
 }
@@ -364,8 +415,8 @@ async function themChuongTruyen(req, res) {
 async function capNhatGiaChuongTruyen(req, res) {
     let { CTID, GiaChuong } = req.body;
     CTID = parseInt(CTID);
-    GiaChuong = parseInt(GiaChuong);
-    if (!CTID || !GiaChuong) {
+    GiaChuong = parseInt(GiaChuong) || 0;
+    if (!CTID) {
         return res.status(400).json({ error: 'Thiếu thông tin' });
     }
     if (GiaChuong < 0) {
@@ -487,6 +538,7 @@ module.exports = {
     truyenTheoTheLoai,
     truyenTheoTuKhoa,
     thongTinTruyen,
+    danhSachChuong,
     thongTinChuongTruyen,
     themTruyen,
     truyenChuaDuyet,

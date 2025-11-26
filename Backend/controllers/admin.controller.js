@@ -7,7 +7,7 @@ async function dangNhap(req, res) {
     }
     try {
         let result = await adminService.dangNhap(Email, MatKhau);
-        if (result.ok) {
+        if (!result.ok) {
             return res.status(result.status).json({ error: result.error });
 
         }

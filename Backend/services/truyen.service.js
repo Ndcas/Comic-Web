@@ -1,5 +1,6 @@
 const { Op, QueryTypes } = require('sequelize');
 const { getFromCache, saveToCache } = require('./cache.service');
+const { deleteFile } = require('../utils/file');
 const { askGemini } = require('../utils/googleapi');
 const { verifyToken } = require('../utils/token');
 const BaoCaoTruyen = require('../models/baocaotruyen.model');
@@ -7,7 +8,6 @@ const BinhLuan = require('../models/binhluan.model');
 const ChuongDaMoKhoa = require('../models/chuongdamokhoa.model');
 const ChuongTruyen = require('../models/chuongtruyen.model');
 const database = require('../database/database');
-const fs = require('fs/promises');
 const HinhAnh = require('../models/hinhanh.model');
 const LichSuDiem = require('../models/lichsudiem.model');
 const LichSuDoc = require('../models/lichsudoc.model');
@@ -133,7 +133,7 @@ async function timTruyenMoi(page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.*
+            SELECT Truyen.TID, TenTruyen, AnhBia
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -185,7 +185,7 @@ async function timTruyenHot(token = null) {
         }
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.*
+            SELECT Truyen.TID, TenTruyen, AnhBia
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(LuotXem) AS MaxLuotXem
@@ -196,7 +196,7 @@ async function timTruyenHot(token = null) {
             ON Truyen.TID = a.TID
             WHERE Truyen.DaDuyet = 1 ${r18Condition}
             ORDER BY MaxLuotXem DESC
-            LIMIT ${HOT_COMICS};
+            LIMIT :limit;
         `;
         let result = await database.query(sql, {
             replacements: { limit: HOT_COMICS },
@@ -205,14 +205,14 @@ async function timTruyenHot(token = null) {
         if (result.length >= HOT_COMICS) {
             return {
                 ok: true,
-                data: result
+                data: { truyenHot: result }
             };
         }
         let newLimit = HOT_COMICS - result.length;
         let TIDs = result.map(item => item.TID);
         let TIDCondition = TIDs.length > 0 ? `AND Truyen.TID NOT IN (${TIDs.join(',')})` : '';
         let newSql = `
-            SELECT Truyen.*
+            SELECT Truyen.TID, TenTruyen, AnhBia
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -291,7 +291,7 @@ async function timTruyenTheoTheLoai(tlid, page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.*
+            SELECT Truyen.TID, TenTruyen, AnhBia
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -368,7 +368,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
         page = page > maxPage ? maxPage : page;
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
-            SELECT Truyen.*
+            SELECT Truyen.TID, TenTruyen, AnhBia
             FROM Truyen
             JOIN(
                 SELECT TID, MAX(NgayDang) AS NgayDang
@@ -427,7 +427,7 @@ async function layThongTinTruyen(tid, token = null) {
             DaDuyet: 1
         };
         if (!showR18) {
-            criteria.GioiHan18Tuoi = 0;
+            searchCriteria.GioiHan18Tuoi = 0;
         }
         let truyen = await Truyen.findOne({
             where: searchCriteria,
@@ -453,6 +453,53 @@ async function layThongTinTruyen(tid, token = null) {
                 error: 'Không tìm thấy truyện được yêu cầu'
             };
         }
+        return {
+            ok: true,
+            data: { truyen: truyen }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi lấy thông tin truyện', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
+async function layDanhSachChuong(tid, token = null) {
+    try {
+        let showR18 = false;
+        let ndid = null;
+        if (token) {
+            let payload = verifyToken(token);
+            if (!payload || !payload.isUser) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
+                showR18 = true;
+            }
+            ndid = payload.NDID;
+        }
+        let searchCriteria = {
+            TID: tid,
+            DaDuyet: 1
+        };
+        if (!showR18) {
+            searchCriteria.GioiHan18Tuoi = 0;
+        }
+        let truyen = await Truyen.findOne({
+            attributes: ['TID'],
+            where: searchCriteria
+        });
+        if (!truyen) {
+            return {
+                ok: false,
+                status: 404,
+                error: 'Không tìm thấy truyện được yêu cầu'
+            };
+        }
         let chuongTruyens;
         if (ndid) {
             chuongTruyens = await ChuongTruyen.findAll({
@@ -465,19 +512,16 @@ async function layThongTinTruyen(tid, token = null) {
                 },
             });
         } else {
-            chuongTruyens = await ChuongTruyen.find({
+            chuongTruyens = await ChuongTruyen.findAll({
                 where: { TID: tid }
             });
         }
         return {
             ok: true,
-            data: {
-                truyen: truyen,
-                chuongTruyens: chuongTruyens
-            }
+            data: { chuongTruyens: chuongTruyens }
         };
     } catch (error) {
-        logger.error('Lỗi khi lấy thông tin truyện', error);
+        logger.error('Lỗi khi lấy danh sách chương', error);
         throw new Error('Lỗi hệ thống');
     }
 }
@@ -898,18 +942,10 @@ async function xoaTruyenDaDang(ndid, tid) {
             await truyen.destroy({ transaction: transaction });
         });
         fileHinhAnhs.forEach(async (item) => {
-            try {
-                await fs.unlink(`./assets/images/${item}`);
-            } catch (error) {
-                logger.error('Lỗi khi xóa file hình ảnh', error);
-            }
+            await deleteFile(`./assets/images/${item}`);
         });
         if (fileAnhBia) {
-            try {
-                await fs.unlink(`./assets/covers/${fileAnhBia}`);
-            } catch (error) {
-                logger.error('Lỗi khi xóa file ảnh bìa', error);
-            }
+            await deleteFile(`./assets/covers/${fileAnhBia}`);
         }
         return { ok: true };
     } catch (error) {
@@ -1108,11 +1144,7 @@ async function xoaChuongTruyen(ndid, ctid) {
             await chuongTruyen.destroy({ transaction: transaction });
         });
         chuongTruyen.HinhAnhs.forEach(async (item) => {
-            try {
-                await fs.unlink(`./assets/images/${item.HinhAnh}`);
-            } catch (error) {
-                logger.error('Lỗi khi xóa file hình ảnh', error);
-            }
+            await deleteFile(`./assets/images/${item.HinhAnh}`);
         });
         return { ok: true };
     } catch (error) {
@@ -1334,6 +1366,7 @@ module.exports = {
     timTruyenTheoTheLoai,
     timTruyenTheoTuKhoa,
     layThongTinTruyen,
+    layDanhSachChuong,
     layThongTinChuongTruyen,
     themTruyen,
     timTruyenChuaDuyet,

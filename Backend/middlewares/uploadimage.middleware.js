@@ -13,11 +13,12 @@ function generateFileName(originalName) {
     let hours = today.getHours().toString().padStart(2, '0');
     let minutes = today.getMinutes().toString().padStart(2, '0');
     let seconds = today.getSeconds().toString().padStart(2, '0');
+    let miliseconds = today.getMilliseconds().toString().padStart(3, '0');
     let random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     let parsedPath = path.parse(originalName);
     let extension = parsedPath.ext;
-    let slicedName = parsedPath.name.slice(0, 69);
-    return `${slicedName}_${hours}${minutes}${seconds}_${date}${month}${year}_${random}${extension}`;
+    let slicedName = parsedPath.name.slice(0, 66);
+    return `${slicedName}_${hours}${minutes}${seconds}${miliseconds}_${date}${month}${year}_${random}${extension}`;
 }
 
 const storageAnhBia = multer.diskStorage({
