@@ -191,6 +191,7 @@ async function xuLyBaoCaoTruyen(bctid, mode = 0) {
                 await deleteFile(`./assets/covers/${fileAnhBia}`);
             }
         }
+        deleteFromCachePrefix('Truyen');
         return { ok: true };
     } catch (error) {
         logger.error('Lỗi khi tìm báo cáo truyện', error);

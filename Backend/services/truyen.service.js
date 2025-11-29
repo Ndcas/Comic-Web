@@ -1,5 +1,5 @@
 const { Op, QueryTypes } = require('sequelize');
-const { getFromCache, saveToCache } = require('./cache.service');
+const { deleteFromCachePrefix, getFromCache, saveToCache } = require('./cache.service');
 const { deleteFile } = require('../utils/file');
 const { askGemini } = require('../utils/googleapi');
 const { verifyToken } = require('../utils/token');
@@ -72,7 +72,7 @@ const comicSummaryContext = `
 const comicValidationContext = `
     Bạn là 1 chatbot hỗ trợ kiểm tra duyệt truyện của 1 trang web truyện tranh.
     Người dùng sẽ gửi thông tin về truyện được yêu cầu và bạn sẽ tìm xem liệu truyện đó có nguy cơ gây ra vấn đề bản quyền hoặc các vấn đề nhạy cảm khi được đăng lên trang web mà có thể thu phí khi người đọc muốn đọc truyện.
-    Hãy trả lời ngắn gọn và không trả lời các câu hỏi không liên quan.
+    Hãy trả lời ngắn gọn với 3 phần chính gồm tỉ lệ gặp vấn đề, tóm tắt các điểm có khả năng gặp vấn đề và kết luận. Không trả lời các câu hỏi không liên quan.
 `;
 
 async function layDanhSachTheLoai() {
@@ -85,7 +85,7 @@ async function layDanhSachTheLoai() {
             };
         }
         let result = await TheLoai.findAll();
-        saveToCache('TheLoai', result, 600);
+        saveToCache('TheLoai', result, CACHE_NUM_COMICS_TTL_SECONDS);
         return {
             ok: true,
             data: { theLoais: result }
@@ -183,6 +183,13 @@ async function timTruyenHot(token = null) {
                 showR18 = true;
             }
         }
+        let cached = getFromCache(`TruyenHot:${showR18 ? '1' : '0'}`);
+        if (cached) {
+            return {
+                ok: true,
+                data: { truyenHot: cached }
+            };
+        }
         let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
         let sql = `
             SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai
@@ -229,6 +236,7 @@ async function timTruyenHot(token = null) {
             type: QueryTypes.SELECT
         });
         result.push(...newResult);
+        saveToCache(`TruyenHot:${showR18 ? '1' : '0'}`, result, CACHE_NUM_COMICS_TTL_SECONDS);
         return {
             ok: true,
             data: { truyenHot: result }
@@ -974,6 +982,7 @@ async function xoaTruyenDaDang(ndid, tid) {
         if (fileAnhBia) {
             await deleteFile(`./assets/covers/${fileAnhBia}`);
         }
+        deleteFromCachePrefix('Truyen');
         return { ok: true };
     } catch (error) {
         if (error.message == 'Không đủ điểm') {
@@ -1216,6 +1225,7 @@ async function xoaChuongTruyen(ndid, ctid) {
         chuongTruyen.HinhAnhs.forEach(async (item) => {
             await deleteFile(`./assets/images/${item.HinhAnh}`);
         });
+        deleteFromCachePrefix('Truyen');
         return { ok: true };
     } catch (error) {
         if (error.message == 'Không đủ điểm') {
@@ -1436,6 +1446,64 @@ async function themBinhLuan(ndid, tid, noiDung) {
     }
 }
 
+async function truyenMoiCapNhat(token = null) {
+    try {
+        let showR18 = false;
+        if (token) {
+            let payload = verifyToken(token);
+            if (!payload || !payload.isUser) {
+                return {
+                    ok: false,
+                    status: 400,
+                    error: 'Access token không hợp lệ'
+                };
+            }
+            let currentDate = new Date();
+            if (currentDate.getFullYear() - payload.NamSinh >= 18) {
+                showR18 = true;
+            }
+        }
+        let cached = getFromCache(`TruyenMoiCapNhat:${showR18 ? '1' : '0'}`);
+        if (cached) {
+            return {
+                ok: true,
+                data: { truyenMoiCapNhat: cached }
+            };
+        }
+        let r18Condition = showR18 ? '' : 'AND Truyen.GioiHan18Tuoi = 0';
+        let sql = `
+            SELECT Truyen.TID, TenTruyen, AnhBia, TrangThai, TenChuongTruyen, NgayDang
+            FROM Truyen
+            JOIN(
+                SELECT ChuongTruyen.TID, TenChuongTruyen, ChuongTruyen.NgayDang
+                FROM ChuongTruyen 
+                JOIN (
+                    SELECT TID, MAX(NgayDang) AS NgayDang
+                    FROM ChuongTruyen
+                    GROUP BY TID
+                ) AS a
+                ON ChuongTruyen.TID = a.TID AND ChuongTruyen.NgayDang = a.NgayDang
+            ) AS b
+            ON Truyen.TID = b.TID
+            WHERE Truyen.DaDuyet = 1 ${r18Condition}
+            ORDER BY b.NgayDang DESC
+            LIMIT :limit;
+        `;
+        let result = await database.query(sql, {
+            replacements: { limit: COMICS_PER_PAGE },
+            type: QueryTypes.SELECT
+        });
+        saveToCache(`TruyenMoiCapNhat:${showR18 ? '1' : '0'}`, result, CACHE_NUM_COMICS_TTL_SECONDS);
+        return {
+            ok: true,
+            data: { truyenMoiCapNhat: result }
+        };
+    } catch (error) {
+        logger.error('Lỗi khi tìm truyện mới cập nhật', error);
+        throw new Error('Lỗi hệ thống');
+    }
+}
+
 module.exports = {
     layDanhSachTheLoai,
     timTruyenMoi,
@@ -1465,5 +1533,6 @@ module.exports = {
     layTomTatTruyen,
     timTruyenBangAI,
     layBinhLuan,
-    themBinhLuan
+    themBinhLuan,
+    truyenMoiCapNhat
 };

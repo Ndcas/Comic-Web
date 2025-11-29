@@ -608,6 +608,19 @@ async function binhLuan(req, res) {
     }
 }
 
+async function truyenMoiCapNhat(req, res) {
+    let token = req.header('Authorization')?.split(' ')[1];
+    try {
+        let result = await truyenService.truyenMoiCapNhat(token);
+        if (!result.ok) {
+            return res.status(result.status).json({ error: result.error });
+        }
+        return res.json({ truyens: result.data.truyenMoiCapNhat });
+    } catch (error) {
+        return res.status(500).json({ error: 'Lỗi hệ thống' });
+    }
+}
+
 module.exports = {
     theLoai,
     truyenMoi,
@@ -637,5 +650,6 @@ module.exports = {
     tomTatTruyen,
     timTruyenBangAI,
     danhSachBinhLuan,
-    binhLuan
+    binhLuan,
+    truyenMoiCapNhat
 };

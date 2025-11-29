@@ -111,4 +111,8 @@ router.get('/danhSachBinhLuan', controller.danhSachBinhLuan);
 // Cần access token của NguoiDung trong header Authorization dạng 'Bearer [access token]', TID, NoiDung trong body
 router.post('/binhLuan', nguoiDungFilter.verifyAccessToken, controller.binhLuan);
 
+// Có thể kèm theo access token của NguoiDung trong header Authorization dạng 'Bearer [access token]' để xem được các truyện giới hạn độ tuổi
+// => truyens (mảng object TID, TenTruyen, AnhBia, TrangThai, TenChuongTruyen, NgayDang)
+router.get('/truyenMoiCapNhat', controller.truyenMoiCapNhat);
+
 module.exports = router;
