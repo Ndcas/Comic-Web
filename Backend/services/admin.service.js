@@ -12,7 +12,6 @@ const Truyen = require('../models/truyen.model');
 
 const ACCESS_TOKEN_TTL_MS = parseInt(process.env.ACCESS_TOKEN_TTL_MS);
 const CACHE_OTP_TTL_SECONDS = parseInt(process.env.CACHE_OTP_TTL_SECONDS);
-const PROFIT_RATIO = parseFloat(process.env.PROFIT_RATIO);
 
 async function dangNhap(email, matKhau) {
     try {
@@ -233,7 +232,7 @@ async function layBaoCaoHeThong(force = false) {
         let unprocessedComicReports = await BaoCaoTruyen.count({
             where: { DaXuLy: 0 }
         });
-        let toppedUpPointsByDays = await database.query(`
+        let pointsUsedByDays = await database.query(`
             WITH RECURSIVE Days AS (
                 SELECT CURDATE() d
                 UNION ALL
@@ -245,10 +244,22 @@ async function layBaoCaoHeThong(force = false) {
             GROUP BY Ngay
             ORDER BY Ngay ASC
         `, { type: database.QueryTypes.SELECT });
-        let profitPointsByDays = toppedUpPointsByDays.map(item => {
+        let pointsAuthorsReceivedByDays = await database.query(`
+            WITH RECURSIVE Days AS (
+                SELECT CURDATE() d
+                UNION ALL
+                SELECT d - INTERVAL 1 DAY
+                FROM Days
+                WHERE d > CURDATE() - INTERVAL 29 DAY
+            ) SELECT DATE(d) Ngay, COALESCE(SUM(DiemThayDoi), 0) Diem
+            FROM Days LEFT JOIN LichSuDiem ON DATE(d) = DATE(NgayDoi) AND LGDID = 1 AND GhiChu LIKE 'Điểm người đọc mở khóa chương%'
+            GROUP BY Ngay
+            ORDER BY Ngay ASC
+        `, { type: database.QueryTypes.SELECT });
+        let profitPointsByDays = pointsUsedByDays.map((item, index) => {
             return {
                 date: new Date(item.Ngay),
-                points: item.Diem * PROFIT_RATIO
+                points: item.Diem - pointsAuthorsReceivedByDays[index].Diem
             };
         });
         let viewsByDays = await database.query(`
