@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, TrendingUp, Sparkles, AlertTriangle, List, Star } from 'lucide-react';

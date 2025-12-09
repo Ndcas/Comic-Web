@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 export default function ForgotPassword() {
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -29,7 +29,7 @@ export default function ForgotPassword() {
     }
   };
 
-  
+
   const handleResetPassword = async (e) => {
     e.preventDefault();
     setError("");

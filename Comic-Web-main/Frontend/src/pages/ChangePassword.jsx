@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+// Khai báo biến môi trường (theo yêu cầu của bạn)
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 export default function ChangePassword() {
   const [form, setForm] = useState({
     currentPassword: "",
@@ -24,19 +27,38 @@ export default function ChangePassword() {
 
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch("http://localhost:8080/api/auth/change-password", {
+      
+      // 🚨 ĐÃ SỬA: SỬ DỤNG TIỀN TỐ '/nguoiDung' ĐỂ KHỚP VỚI BACKEND
+      const API_URL = `${VITE_BACKEND_URL}/nguoiDung/change-password`;
+
+      const res = await fetch(API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          currentPassword: form.currentPassword,
+          // 🚨 ĐÃ SỬA: DÙNG 'oldPassword' ĐỂ KHỚP VỚI HÀM doiMatKhau() TRONG BACKEND
+          oldPassword: form.currentPassword, 
           newPassword: form.newPassword,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Đổi mật khẩu thất bại");
+
+      // Xử lý lỗi Parse JSON (HTML response)
+      const contentType = res.headers.get("content-type");
+      let data;
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const errorText = await res.text();
+        // Thông báo lỗi cụ thể cho người dùng biết lỗi không phải do frontend
+        throw new Error("Lỗi phản hồi từ server: Không nhận được JSON. (Kiểm tra lỗi 404/500 trên server)");
+      }
+      
+      if (!res.ok) {
+          throw new Error(data.error || data.message || "Đổi mật khẩu thất bại");
+      } 
+      
       setSuccess("Đổi mật khẩu thành công!");
       setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err) {
