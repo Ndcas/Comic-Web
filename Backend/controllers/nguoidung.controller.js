@@ -2,6 +2,7 @@ const nguoiDungService = require('../services/nguoidung.service');
 const validator = require('validator');
 
 const COOKIE_MAX_AGE_MS = parseInt(process.env.COOKIE_MAX_AGE_MS);
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 async function yeuCauOTPDangKy(req, res) {
     let { Email } = req.body;
@@ -288,16 +289,16 @@ async function napDiem(req, res) {
 async function xuLyKetQuaNapDiem(req, res) {
     let NDID = parseInt(req.params.NDID);
     if (!NDID) {
-        return res.status(400).json({ error: 'Thiếu thông tin' });
+        return res.redirect(`${FRONTEND_URL}/xuLyKetQuaNapDiem/${NDID}?error=${encodeURIComponent('Thiếu thông tin')}`);
     }
     try {
         let result = await nguoiDungService.xuLyKetQuaNapDiem(NDID, req.query);
         if (!result.ok) {
-            return res.status(result.status).json({ error: result.error });
+            return res.redirect(`${FRONTEND_URL}/xuLyKetQuaNapDiem/${NDID}?error=${encodeURIComponent(result.error)}`);
         }
-        return res.json({ message: 'Nạp điểm thành công' });
+        return res.redirect(`${FRONTEND_URL}/xuLyKetQuaNapDiem/${NDID}?status=1`);
     } catch (error) {
-        return res.status(500).json({ error: 'Lỗi hệ thống' });
+        return res.redirect(`${FRONTEND_URL}/xuLyKetQuaNapDiem/${NDID}?error=${encodeURIComponent('Lỗi hệ thống')}`);
     }
 }
 

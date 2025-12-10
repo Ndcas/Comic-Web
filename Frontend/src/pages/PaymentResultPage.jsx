@@ -5,30 +5,31 @@ import { useParams, useLocation, Link } from 'react-router-dom';
 
 function PaymentResultPage() {
     const { NDID } = useParams(); // Lấy NDID từ URL path
-    const location = useLocation(); 
+    const location = useLocation();
 
     // Các tham số này được Backend Controller xử lý, ta chỉ dùng để hiển thị thông báo.
     const query = new URLSearchParams(location.search);
     const status = query.get('status'); // Mã trạng thái VTC Pay (1 là Thành công)
+    const errorMessage = query.get('error'); // Thông điệp lỗi nếu có
 
     const [message, setMessage] = useState('Đang kiểm tra kết quả giao dịch...');
     const [isSuccess, setIsSuccess] = useState(false);
-    
+
     useEffect(() => {
         // Kiểm tra mã trạng thái VTC Pay. Backend đã xác nhận và cộng điểm.
         if (status === '1') {
             setIsSuccess(true);
             setMessage('🎉 Nạp điểm thành công! Số điểm của bạn đã được cập nhật.');
-        } else if (status) {
+        } else if (errorMessage) {
             setIsSuccess(false);
             // Có thể hiển thị mã lỗi chi tiết hơn nếu cần
-            setMessage(`❌ Giao dịch thất bại (Status: ${status}). Vui lòng kiểm tra lại.`);
+            setMessage(`❌ Giao dịch thất bại. Lỗi: ${errorMessage}`);
         } else {
             setIsSuccess(false);
             setMessage('Đã xảy ra lỗi không xác định khi xử lý giao dịch.');
         }
 
-    }, [status]);
+    }, [status, errorMessage]);
 
 
     return (
