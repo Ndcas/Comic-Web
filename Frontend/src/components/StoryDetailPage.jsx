@@ -1,15 +1,15 @@
-// /src/pages/StoryDetailPage.jsx
+
 
 import React, { useContext } from 'react';
 import { FavoriteContext } from '../contexts/FavoriteContext';
 import { FaHeart } from 'react-icons/fa';
 
-// Giả định component này nhận TID qua props hoặc URL params
+
 export default function StoryDetailPage({ storyId }) { 
-    // Giả định storyId là TID của truyện hiện tại
+    
     const TID = storyId || 123; 
     
-    // Sử dụng Context
+    
     const { 
         isFavorite, 
         addFavorite, 
@@ -17,11 +17,11 @@ export default function StoryDetailPage({ storyId }) {
         loading: favoritesLoading 
     } = useContext(FavoriteContext);
 
-    // 1. Kiểm tra trạng thái hiện tại
+   
     const isCurrentlyFavorite = isFavorite(TID);
     const [isUpdating, setIsUpdating] = React.useState(false);
 
-    // 2. Xử lý logic click
+  
     const handleFavoriteClick = async () => {
         if (favoritesLoading || isUpdating) return; // Ngăn double click
         

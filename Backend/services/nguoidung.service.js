@@ -529,6 +529,7 @@ async function rutDiem(ndid, diem) {
     }
 }
 
+
 async function layLichSuDoc(ndid) {
     try {
         let nguoiDung = await NguoiDung.findOne({

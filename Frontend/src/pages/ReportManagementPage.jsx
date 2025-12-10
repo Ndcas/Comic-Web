@@ -1,168 +1,238 @@
 // src/pages/ReportManagementPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { BookOpen, MessageSquare, Check, Eye, Trash2, Clock } from 'lucide-react';
-// import { toast } from 'react-toastify'; 
+// 🚨 ĐÃ SỬA LỖI IMPORT: Thay thế import 'authAxios' bằng import 'useAuthAxios'
+import { useAuthAxios } from '../utils/AuthContext'; 
 
-// Dữ liệu mẫu báo cáo
-const MOCK_REPORTS = {
-  comic: [
-    { ID: 1, Type: "Comic", TargetID: 35, TargetName: "Truyện A: Nội dung bạo lực", Reporter: "User 101", Reason: "Bạo lực quá mức", Status: "Pending", ReportedDate: "2025-11-28" },
-    { ID: 2, Type: "Comic", TargetID: 88, TargetName: "Truyện B: Vi phạm bản quyền", Reporter: "User 105", Reason: "Copy truyện khác", Status: "Pending", ReportedDate: "2025-11-27" },
-  ],
-  comment: [
-    { ID: 101, Type: "Comment", TargetID: 501, TargetContent: "Bình luận xúc phạm tác giả.", Reporter: "User 201", Reason: "Ngôn ngữ không phù hợp", Status: "Pending", ReportedDate: "2025-11-29" },
-    { ID: 102, Type: "Comment", TargetID: 502, TargetContent: "Spam quảng cáo link ngoài.", Reporter: "User 205", Reason: "Spam/Quảng cáo", Status: "Pending", ReportedDate: "2025-11-29" },
-  ],
-};
+// Truy cập trực tiếp biến môi trường Vite (không cần thiết nếu dùng base URL từ authAxios, 
+// nhưng giữ lại để API_BASE_PATH được xác định rõ ràng)
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL; 
+// Giả định base API cho quản lý báo cáo, tuy nhiên trong authAxios đã có base URL rồi.
+// Tốt nhất chỉ nên dùng path /admin/reports
+const API_BASE_PATH = '/admin/reports'; 
 
 const ReportManagementPage = () => {
-  const [reportType, setReportType] = useState('comic'); // 'comic' hoặc 'comment'
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(false);
+    // 🚨 GỌI HOOK: Lấy instance Axios đã được cấu hình và đính kèm token
+    const authAxios = useAuthAxios(); 
 
-  // 💡 TODO: Hàm lấy dữ liệu báo cáo từ API
-  const fetchReports = async () => {
-    // try {
-    //   setLoading(true);
-    //   // Gọi API backend để lấy báo cáo theo loại (comic/comment)
-    //   // const response = await axios.get(`/admin/reports/list?type=${reportType}`);
-    //   // setReports(response.data);
-    // } catch (error) {
-    //   // toast.error("Lỗi tải danh sách báo cáo");
-    // } finally {
-    //   setLoading(false);
-    // }
+    // State quản lý danh sách báo cáo
+    const [reports, setReports] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize] = useState(10); 
     
-    // Dùng dữ liệu mẫu
-    setReports(MOCK_REPORTS[reportType] || []);
-  };
-  
-  useEffect(() => {
-    fetchReports();
-  }, [reportType]);
+    // State bộ lọc và tìm kiếm
+    const [filterStatus, setFilterStatus] = useState('UNPROCESSED'); // TRẠNG THÁI: UNPROCESSED, PROCESSED
+    const [filterType, setFilterType] = useState('ALL'); // TYPE: COMIC, COMMENT, ALL
+    const [message, setMessage] = useState(null);
 
-  // Xử lý hành động: Đánh dấu đã xử lý (Mark As Resolved)
-  const handleResolve = (reportId) => {
-      if (window.confirm(`Bạn có chắc chắn muốn đánh dấu Báo cáo ID ${reportId} là ĐÃ XỬ LÝ không?`)) {
-          // 💡 TODO: Gọi API /admin/reports/resolve để đánh dấu là resolved
-          // Sau đó, lọc bỏ báo cáo đó khỏi danh sách hiển thị (hoặc gọi fetchReports)
-          setReports(reports.filter(r => r.ID !== reportId));
-          alert(`Báo cáo ID ${reportId} đã được đánh dấu là Đã Xử lý.`);
-      }
-  }
-
-  // Xử lý hành động: Xem mục tiêu (View Target)
-  const handleViewTarget = (targetType, targetId) => {
-      alert(`Chuyển hướng đến trang chi tiết: ${targetType} ID: ${targetId}`);
-      // 💡 TODO: Dùng navigate để chuyển hướng đến trang xem truyện hoặc xem bình luận
-      // Ví dụ: navigate(`/story/${targetId}`) hoặc hiển thị modal chi tiết
-  }
-
-  return (
-    <div className="p-4 bg-gray-50 min-h-full">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">🚨 Quản lý Báo cáo</h1>
-
-      {/* Thanh Công cụ & Chuyển đổi loại báo cáo */}
-      <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-md">
-        <div className="text-xl font-semibold text-gray-700">
-            {reportType === 'comic' ? 'Báo cáo Truyện' : 'Báo cáo Bình luận'} chưa xử lý
-        </div>
+    // --- Hàm Fetch Dữ liệu Báo cáo ---
+    // API: GET /admin/reports?page=X&status=Y&type=Z
+    const fetchReports = useCallback(async () => {
+        setLoading(true);
+        setError(null);
         
-        {/* Nút Chuyển đổi */}
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setReportType('comic')}
-            className={`flex items-center px-4 py-2 rounded-lg transition duration-200 text-sm font-semibold 
-                        ${reportType === 'comic' ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-          >
-            <BookOpen className="w-5 h-5 mr-2" /> Truyện
-          </button>
-          <button
-            onClick={() => setReportType('comment')}
-            className={`flex items-center px-4 py-2 rounded-lg transition duration-200 text-sm font-semibold 
-                        ${reportType === 'comment' ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-          >
-            <MessageSquare className="w-5 h-5 mr-2" /> Bình luận
-          </button>
-        </div>
-      </div>
+        try {
+            // Sử dụng authAxios đã lấy từ hook
+            const response = await authAxios.get(API_BASE_PATH, {
+                params: {
+                    page: currentPage,
+                    pageSize: pageSize,
+                    status: filterStatus,
+                    type: filterType === 'ALL' ? undefined : filterType, // Gửi type nếu không phải ALL
+                }
+            });
 
-      {/* Bảng Danh sách Báo cáo */}
-      <div className="bg-white p-6 rounded-xl shadow-lg overflow-x-auto">
-        {loading ? (
-          <p className="text-center p-10">Đang tải danh sách báo cáo...</p>
-        ) : reports.length === 0 ? (
-          <div className="text-center py-8 text-green-500 text-lg">
-             <Check className="w-6 h-6 inline-block mr-2"/> 🎉 Tuyệt vời! Không có báo cáo nào cần xử lý.
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Báo cáo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mục tiêu bị báo cáo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lý do</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người báo cáo</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reports.map((report) => (
-                <tr key={report.ID} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {report.ID} <span className="text-xs text-gray-500 block">({new Date(report.ReportedDate).toLocaleDateString('vi-VN')})</span>
-                  </td>
-                  
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {report.Type === 'Comic' ? (
-                        <span className="font-semibold">{report.TargetName} (ID: {report.TargetID})</span>
-                    ) : (
-                        <span className="italic text-gray-600">"{report.TargetContent.substring(0, 50)}..." (ID: {report.TargetID})</span>
-                    )}
-                  </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">{report.Reason}</td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.Reporter}</td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
-                    
-                    {/* Nút Xem chi tiết mục tiêu */}
-                    <button
-                        title={`Xem chi tiết ${report.Type}`}
-                        onClick={() => handleViewTarget(report.Type, report.TargetID)}
-                        className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50"
+            // Giả định backend trả về: { reports: [], totalPages: N, totalItems: M }
+            setReports(response.data.reports || []);
+            setTotalPages(response.data.totalPages || 1);
+            setTotalItems(response.data.totalItems || 0);
+            
+        } catch (err) {
+            setError(err.response?.data?.error || 'Không thể tải danh sách báo cáo.');
+        } finally {
+            setLoading(false);
+        }
+    }, [authAxios, currentPage, pageSize, filterStatus, filterType]); // 🚨 QUAN TRỌNG: Thêm authAxios vào dependency array
+
+    useEffect(() => {
+        fetchReports();
+    }, [fetchReports]);
+
+    // --- Hàm Xử lý Báo cáo (Đánh dấu đã xử lý) ---
+    // API: POST /admin/reports/xuLy/:ReportID
+    const handleProcessReport = async (ReportID, ReportType) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn đánh dấu báo cáo ${ReportID} (${ReportType}) là ĐÃ XỬ LÝ không?`)) return;
+
+        try {
+            setMessage(`Đang xử lý báo cáo ID: ${ReportID}...`);
+            await authAxios.post(`${API_BASE_PATH}/xuLy/${ReportID}`);
+            setMessage(`Báo cáo ID: ${ReportID} đã được đánh dấu ĐÃ XỬ LÝ.`);
+            fetchReports(); // Tải lại danh sách
+        } catch (err) {
+            setError(err.response?.data?.error || 'Lỗi khi xử lý báo cáo.');
+        } finally {
+            setMessage(null);
+        }
+    };
+    
+    // --- Xử lý sự kiện phân trang ---
+    const handlePageChange = (page) => {
+        if (page > 0 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
+    // --- Xử lý thay đổi bộ lọc
+    const handleFilterChange = (setter, value) => {
+        setter(value);
+        setCurrentPage(1); // Luôn reset về trang 1 khi thay đổi bộ lọc
+    };
+    
+    // --- Render Component ---
+    return (
+        <div style={styles.container}>
+            <h2>Quản Lý Báo Cáo Vi Phạm ({filterStatus === 'UNPROCESSED' ? 'Chưa Xử Lý' : 'Đã Xử Lý'})</h2>
+            
+            {/* Bộ lọc */}
+            <div style={styles.controls}>
+                <div style={styles.filterGroup}>
+                    <label>Trạng thái:</label>
+                    <select 
+                        value={filterStatus} 
+                        onChange={(e) => handleFilterChange(setFilterStatus, e.target.value)}
+                        style={styles.select}
                     >
-                        <Eye className="w-5 h-5" />
-                    </button>
-                    
-                    {/* Nút Đánh dấu Đã xử lý */}
-                    <button
-                        title="Đánh dấu đã xử lý"
-                        onClick={() => handleResolve(report.ID)}
-                        className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                        <option value="UNPROCESSED">Chưa Xử Lý</option>
+                        <option value="PROCESSED">Đã Xử Lý</option>
+                    </select>
+                </div>
+                
+                <div style={styles.filterGroup}>
+                    <label>Loại báo cáo:</label>
+                    <select 
+                        value={filterType} 
+                        onChange={(e) => handleFilterChange(setFilterType, e.target.value)}
+                        style={styles.select}
                     >
-                        <Check className="w-5 h-5" />
-                    </button>
+                        <option value="ALL">Tất cả</option>
+                        <option value="COMIC">Truyện</option>
+                        <option value="COMMENT">Bình luận</option>
+                    </select>
+                </div>
+            </div>
+
+            {error && <p style={styles.error}>{error}</p>}
+            {message && <p style={styles.message}>{message}</p>}
+
+            {loading ? (
+                <p style={styles.loading}>Đang tải danh sách báo cáo...</p>
+            ) : (
+                <>
+                    <p style={styles.summary}>Tổng cộng: {totalItems} báo cáo</p>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Loại</th>
+                                <th>Nội dung báo cáo</th>
+                                <th>Người báo cáo</th>
+                                <th>Ngày báo cáo</th>
+                                <th>Trạng thái</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {reports.length > 0 ? (
+                                reports.map((report) => (
+                                    <tr key={report.ReportID}>
+                                        <td>{report.ReportID}</td>
+                                        <td>
+                                            <span style={styles.typeBadge[report.ReportType]}>
+                                                {report.ReportType === 'COMIC' ? 'Truyện' : 'Bình luận'}
+                                            </span>
+                                        </td>
+                                        <td>{report.NoiDungViPham}</td>
+                                        <td>{report.TenTaiKhoanNguoiBaoCao || 'N/A'}</td>
+                                        <td>{new Date(report.NgayBaoCao).toLocaleString('vi-VN')}</td>
+                                        <td>
+                                            <span style={styles.statusBadge[report.TrangThai]}>
+                                                {report.TrangThai === 'PROCESSED' ? 'Đã Xử Lý' : 'Chưa Xử Lý'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {report.TrangThai === 'UNPROCESSED' ? (
+                                                <button 
+                                                    onClick={() => handleProcessReport(report.ReportID, report.ReportType)}
+                                                    style={styles.actionButton.process}
+                                                >
+                                                    Đánh dấu đã xử lý
+                                                </button>
+                                            ) : (
+                                                <button style={styles.actionButton.view}>Chi tiết xử lý</button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan="7" style={{textAlign: 'center'}}>Không tìm thấy báo cáo nào phù hợp với bộ lọc.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
                     
-                    {/* Nút Xóa Báo cáo (Dữ liệu mẫu, có thể không cần thiết) */}
-                    <button
-                        title="Xóa Báo cáo"
-                        className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-50"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
+                    {/* Phân trang */}
+                    <div style={styles.pagination}>
+                        <button 
+                            onClick={() => handlePageChange(currentPage - 1)} 
+                            disabled={currentPage === 1}
+                            style={styles.pageButton}
+                        >
+                            Trước
+                        </button>
+                        <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
+                        <button 
+                            onClick={() => handlePageChange(currentPage + 1)} 
+                            disabled={currentPage === totalPages}
+                            style={styles.pageButton}
+                        >
+                            Sau
+                        </button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+// --- Styles cho component ---
+const styles = {
+    container: { padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
+    controls: { display: 'flex', gap: '20px', marginBottom: '20px', alignItems: 'center' },
+    filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
+    select: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
+    error: { color: 'red', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    message: { color: 'green', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    loading: { textAlign: 'center', padding: '30px' },
+    summary: { marginBottom: '15px', fontWeight: 'bold' },
+    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px', textAlign: 'left' },
+    typeBadge: {
+        COMIC: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#007bff', color: 'white', fontSize: '0.8em' },
+        COMMENT: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#6c757d', color: 'white', fontSize: '0.8em' },
+    },
+    statusBadge: {
+        UNPROCESSED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.9em' },
+        PROCESSED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.9em' },
+    },
+    actionButton: {
+        process: { padding: '5px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+        view: { padding: '5px 10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }
+    },
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px', gap: '15px' },
+    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' },
+    pageInfo: { fontWeight: 'bold' },
 };
 
 export default ReportManagementPage;

@@ -1,109 +1,131 @@
-import { createContext, useContext, useEffect, useState } from "react";
+// src/utils/AuthContext.jsx
 
-// 🛠️ SỬA LỖI: Thêm giá trị mặc định vào createContext
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import axios from 'axios'; 
+
+// 🛠️ SỬA LỖI: Thêm giá trị mặc định đầy đủ vào createContext
 const AuthContext = createContext({
     user: null, 
-    login: () => { console.error("login function called outside AuthProvider"); }, 
+    login: () => {}, 
     logout: () => {}, 
-    updateToken: () => {}, // 🚨 Thêm hàm mặc định cho updateToken
+    // 🚨 Thay đổi chữ ký hàm để hỗ trợ Admin Login
+    updateToken: (newToken, newExpiry, newRole, newEmail, newTenTaiKhoan) => {}, 
     loading: true,
 });
+
+// Lấy BASE_URL từ biến môi trường
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL; 
+const BASE_URL = VITE_BACKEND_URL; 
+
+// Hàm tiện ích đọc Local Storage
+const getUserFromLocalStorage = () => {
+    const token = localStorage.getItem("token"); 
+    const role = localStorage.getItem("role"); 
+    const email = localStorage.getItem("email"); 
+    const exp = localStorage.getItem("exp"); 
+    const tenTaiKhoan = localStorage.getItem("tenTaiKhoan"); 
+
+    if (token && role && email && exp) {
+        console.log("DEBUG: AuthContext read success:", { token: token.substring(0, 10) + '...', role, email });
+        return { 
+            token, 
+            role, // <-- Thuộc tính quan trọng cho AdminProtectedRoute
+            email: email, 
+            exp: exp,
+            TenTaiKhoan: tenTaiKhoan || email 
+        }; 
+    }
+    
+    console.log("DEBUG: AuthContext read failed (some keys missing).");
+    return null;
+};
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Hàm lấy thông tin user từ Local Storage
-    const getUserFromLocalStorage = () => {
-        // Lưu ý: Backend của bạn sử dụng 'token' thay vì 'accessToken'
-        const token = localStorage.getItem("token"); 
-        const role = localStorage.getItem("role");
-        const email = localStorage.getItem("email"); 
-        const exp = localStorage.getItem("exp");     
+    // 🚨 TỐI ƯU HÓA: Bọc hàm bằng useCallback
+    const login = useCallback(() => {
+        setUser(getUserFromLocalStorage());
+        console.log("DEBUG: login() called, user state updated.");
+    }, []);
 
-        // Chúng ta giả định TenTaiKhoan cũng được lưu ở đây sau khi đăng nhập/đăng ký
-        const tenTaiKhoan = localStorage.getItem("tenTaiKhoan"); 
-
-        if (token && role && email && exp) {
-            console.log("DEBUG: AuthContext read success:", { token: token.substring(0, 10) + '...', role, email });
-            // Trả về đối tượng user có các trường cần thiết
-            return { token, role, email: email || 'User', exp, TenTaiKhoan: tenTaiKhoan || email }; 
-        }
-        
-        console.log("DEBUG: AuthContext read failed (some keys missing).");
-        return null;
-    };
-
-    // Hàm được gọi từ Login.jsx
-    const login = () => {
-        const loggedInUser = getUserFromLocalStorage();
-        setUser(loggedInUser);
-        console.log("DEBUG: login() called, user state updated:", loggedInUser);
-    };
-
-    /**
-     * Cập nhật Access Token và TenTaiKhoan sau khi Đổi tên thành công.
-     * @param {string} newToken - Access Token mới.
-     * @param {number} newExpiry - Thời gian hết hạn mới (timestamp).
-     * @param {string} [newTenTaiKhoan] - Tên tài khoản mới (Tùy chọn).
-     */
-    const updateToken = (newToken, newExpiry, newTenTaiKhoan = null) => {
+    // 🚨 HÀM ĐÃ SỬA: Nhận đủ tham số để lưu thông tin Admin và cập nhật state
+    const updateToken = useCallback((newToken, newExpiry, newRole, newEmail, newTenTaiKhoan = null) => {
+        // 1. Cập nhật Local Storage
         localStorage.setItem('token', newToken);
         localStorage.setItem('exp', newExpiry);
-
-        // Cập nhật tên tài khoản nếu được cung cấp (từ Profile.jsx)
+        // QUAN TRỌNG: Lưu ROLE và EMAIL để AdminProtectedRoute và các component khác sử dụng
+        localStorage.setItem('role', newRole);
+        localStorage.setItem('email', newEmail);
         if (newTenTaiKhoan) {
             localStorage.setItem('tenTaiKhoan', newTenTaiKhoan);
         }
 
-        // Cập nhật state user
-        setUser(prevUser => {
-            if (prevUser) {
-                return {
-                    ...prevUser,
-                    token: newToken,
-                    exp: newExpiry,
-                    ...(newTenTaiKhoan && { TenTaiKhoan: newTenTaiKhoan }) // Thêm TenTaiKhoan nếu có
-                };
-            }
-            // Trường hợp hy hữu: updateToken được gọi khi user là null
-            return getUserFromLocalStorage(); 
+        // 2. Cập nhật State
+        setUser({
+            token: newToken,
+            role: newRole,
+            email: newEmail,
+            exp: newExpiry,
+            TenTaiKhoan: newTenTaiKhoan || newEmail,
         });
 
-        console.log("DEBUG: Token và thông tin người dùng đã được cập nhật.");
-    };
+        console.log("DEBUG: Token, Role và thông tin người dùng đã được cập nhật.");
+    }, []);
 
 
-    // Hàm Logout
-    const logout = () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("role");
-        localStorage.removeItem("exp"); 
-        localStorage.removeItem("email"); 
-        localStorage.removeItem("tenTaiKhoan"); // 🚨 Thêm xóa TenTaiKhoan
+    // 🚨 TỐI ƯU HÓA: Bọc hàm bằng useCallback
+    const logout = useCallback(() => {
+        localStorage.clear(); // Xóa tất cả các mục liên quan đến user
         setUser(null); 
-    };
+        console.log("DEBUG: Người dùng đã đăng xuất.");
+    }, []);
 
-    // Khởi tạo: Kiểm tra Local Storage khi ứng dụng load
     useEffect(() => {
         setUser(getUserFromLocalStorage());
         setLoading(false);
     }, []);
 
-    const value = {
+    const value = useMemo(() => ({
         user, 
         logout, 
         login, 
         loading,
-        updateToken, // 🚨 Cần expose hàm này
-    };
+        updateToken, 
+    }), [user, logout, login, loading, updateToken]); // useMemo cho value
 
     return (
         <AuthContext.Provider value={value}> 
+            {/* Chỉ render children sau khi đã kiểm tra xong Local Storage */}
             {!loading && children} 
         </AuthContext.Provider>
     );
 };
 
-// 💡 NAMED EXPORT cho Hook (Giữ nguyên)
+// 💡 EXPORT CUSTOM HOOKS
 export const useAuth = () => useContext(AuthContext);
+
+/**
+ * 🚨 HOOK MỚI: Tạo instance Axios có đính kèm Access Token.
+ */
+export const useAuthAxios = () => {
+    const { user } = useAuth(); 
+
+    // Tối ưu hóa: Chỉ tạo lại instance khi token thay đổi
+    const authAxios = useMemo(() => {
+        const instance = axios.create({
+            baseURL: BASE_URL, 
+            headers: {
+                Authorization: user ? `Bearer ${user.token}` : ''
+            }
+        });
+
+        // 🚨 Interceptor logic cho Refresh Token (Nếu cần)
+        
+        return instance;
+        
+    }, [user?.token]); // Chỉ phụ thuộc vào token
+
+    return authAxios;
+};

@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-// Các thư viện icon đã được thay thế bằng inline SVG để tránh lỗi "Could not resolve"
-// import { FaBookOpen, FaUserEdit, FaTag, FaCheckCircle, FaRunning, FaClock, FaHeart, FaEye, FaArrowRight, FaCompressAlt } from 'react-icons/fa'; 
-// import { IoIosWarning } from "react-icons/io";
 import { get } from '../utils/request';
+import ChapterListDisplay from '../components/ChapterListDisplay';
 
-// Định nghĩa các hằng số và biến môi trường giả lập
-// Thay thế import.meta.env để tránh lỗi "empty-import-meta"
-const VITE_BACKEND_URL = 'http://localhost:8080'; // Giả lập giá trị mặc định cho backend URL
-
-// --- Inline SVG Icons (Thay thế react-icons) ---
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
 
 const IconBookOpen = (props) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path fill="currentColor" d="M384 128H192c-17.67 0-32 14.33-32 32v224c0 17.67 14.33 32 32 32h192c17.67 0 32-14.33 32-32V160c0-17.67-14.33-32-32-32zM576 160v224c0 44.18-35.82 80-80 80h-64V96h64c44.18 0 80 35.82 80 80zM0 160c0-44.18 35.82-80 80-80h64v352H80c-44.18 0-80-35.82-80-80V160z"/></svg>
@@ -37,31 +31,26 @@ const IconWarning = (props) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path fill="currentColor" d="M569.5 447.1L405.7 68.3C397.7 54.2 382.7 45 366.1 45H209.9c-16.6 0-31.6 9.2-39.6 23.3L6.5 447.1C-1.5 461.2 3.5 478 17.5 489.2 31.5 500.4 49 507 66.5 507H509.5c17.5 0 35-6.6 49-17.8 14-11.2 19-28 11-42.1zM288 432c-17.6 0-32-14.4-32-32s14.4-32 32-32 32 14.4 32 32-14.4 32-32 32zm0-96c-17.6 0-32-14.4-32-32V176c0-17.6 14.4-32 32-32s32 14.4 32 32v128c0 17.6-14.4 32-32 32z"/></svg>
 );
 
-// --- Component Chính ---
 
 function StoryDetail() {
     const { TID } = useParams();
     const [story, setStory] = useState(null);
-    const [chapters, setChapters] = useState([]);
+    const [chapters, setChapters] = useState([]); 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Bổ sung các state cho chức năng Tóm tắt
     const [summary, setSummary] = useState(null);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [summaryError, setSummaryError] = useState(null);
     
-    // Hàm gọi API lấy Tóm tắt Truyện
     const handleTomTatTruyen = async () => {
         setIsSummaryLoading(true);
         setSummaryError(null);
-        setSummary(null); // Reset tóm tắt cũ
+        setSummary(null);
 
         try {
-            // Sử dụng endpoint API bạn cung cấp: /truyen/tomTatTruyen?TID={TID}
             const response = await axios.get(`${VITE_BACKEND_URL}/truyen/tomTatTruyen?TID=${TID}`);
             
-            // API của bạn trả về { summary: '...' }
             if (response.data && response.data.summary) {
                 setSummary(response.data.summary);
             } else {
@@ -69,7 +58,6 @@ function StoryDetail() {
             }
         } catch (err) {
             console.error("Lỗi khi gọi API Tóm tắt truyện:", err);
-            // Kiểm tra lỗi từ Backend trả về
             const errorMessage = err.response?.data?.error || 'Lỗi không xác định khi tóm tắt truyện.';
             setSummaryError(errorMessage);
         } finally {
@@ -81,14 +69,13 @@ function StoryDetail() {
         setLoading(true);
         setError(null);
         try {
-            // Tải thông tin truyện
             let truyenResponse = null;
             let chuongTruyenResponse = null;
             const isUserLoggedIn = localStorage.getItem('role') === 'NguoiDung' && localStorage.getItem('token');
             
             if (isUserLoggedIn) {
                 truyenResponse = await get(`${VITE_BACKEND_URL}/truyen/thongTinTruyen?TID=${TID}`, false, true);
-                chuongTruyenResponse = await get(`${VITE_BACKEND_URL}/truyen/danhSachChuong?TID=${TID}`, false, true);
+                chuongTruyenResponse = await get(`${VITE_BACKEND_URL}/truyen/danhSachChuong?TID=${TID}`, false, true); 
             } else {
                 truyenResponse = await get(`${VITE_BACKEND_URL}/truyen/thongTinTruyen?TID=${TID}`);
                 chuongTruyenResponse = await get(`${VITE_BACKEND_URL}/truyen/danhSachChuong?TID=${TID}`);
@@ -98,14 +85,15 @@ function StoryDetail() {
             if (!truyenResponse.ok) {
                 throw new Error(dataTruyen.error);
             }
+            
             let dataChuongTruyen = await chuongTruyenResponse.json();
             if (!chuongTruyenResponse.ok) {
                 throw new Error(dataChuongTruyen.error);
             }
 
             setStory(dataTruyen.truyen);
-            setChapters(dataChuongTruyen.chuongTruyens);
-
+            setChapters(dataChuongTruyen.chuongTruyens); 
+            
         } catch (err) {
             console.error("Lỗi tải chi tiết truyện:", err);
             setError(err.message || "Không thể tải chi tiết truyện. Vui lòng kiểm tra ID hoặc kết nối Backend.");
@@ -122,32 +110,25 @@ function StoryDetail() {
     if (error) return <div className="text-center p-8 text-xl text-red-600 flex items-center justify-center"><IconWarning className="w-5 h-5 mr-2" /> {error}</div>;
     if (!story) return <div className="text-center p-8 text-gray-500">Truyện không tồn tại.</div>;
 
-    // Lấy chương đầu tiên và chương mới nhất để tạo nút đọc
     const firstChapter = chapters.length > 0 ? chapters[0] : null;
     const latestChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
 
-    // Xác định trạng thái
     const statusText = story.TrangThai == 0 ? 'Hoàn Thành' : 'Đang Ra';
     const statusColor = story.TrangThai == 0 ? 'bg-blue-600' : 'bg-red-600';
-    // const statusIcon = story.TrangThai == 0 ? <FaCheckCircle /> : <FaRunning />; 
 
     const luotThich = story.LuotThich;
 
     return (
         <div className="container mx-auto p-4 max-w-7xl">
 
-            {/* Tiêu đề Truyện Lớn */}
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-6 border-b pb-2">
                 {story.TenTruyen}
             </h1>
 
-            {/* Khối Thông tin Chính: Bố cục 2 Cột trên Desktop (Flexbox) */}
             <div className="flex flex-col lg:flex-row gap-8">
 
-                {/* 1. Cột Trái: Ảnh Bìa và Nút Đọc (Sticky trên desktop) */}
                 <div className="w-full lg:w-1/3 flex flex-col items-center lg:sticky lg:top-4 h-full">
 
-                    {/* Ảnh Bìa */}
                     <div className="w-2/3 sm:w-1/2 lg:w-full aspect-[3/4] rounded-lg shadow-xl overflow-hidden mb-5 border-4 border-gray-200">
                         <img
                             src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia || 'default.jpg'}`}
@@ -156,30 +137,26 @@ function StoryDetail() {
                         />
                     </div>
 
-                    {/* Nút Đọc và Nút Tóm tắt */}
                     <div className="w-full sm:w-1/2 lg:w-full flex flex-col gap-3">
-                        {/* Nút Đọc Từ Chương Đầu */}
                         {firstChapter && (
                             <Link
                                 to={`/read/${story.TID}/${firstChapter.CTID}`}
                                 className="w-full py-3 bg-red-600 text-white font-bold text-lg 
-                                            rounded-full flex items-center justify-center 
-                                            hover:bg-red-700 transition-colors shadow-lg">
+                                                rounded-full flex items-center justify-center 
+                                                hover:bg-red-700 transition-colors shadow-lg">
                                 <IconBookOpen className="w-4 h-4 mr-2" /> Đọc Từ Chương Đầu
                             </Link>
                         )}
-                        {/* Nút Chương Mới Nhất */}
                         {latestChapter && (
                             <Link
                                 to={`/read/${story.TID}/${latestChapter.CTID}`}
                                 className="w-full py-3 bg-gray-200 text-gray-800 font-bold text-lg 
-                                            rounded-full flex items-center justify-center 
-                                            hover:bg-gray-300 transition-colors border border-gray-300">
+                                                rounded-full flex items-center justify-center 
+                                                hover:bg-gray-300 transition-colors border border-gray-300">
                                 <IconArrowRight className="w-4 h-4 mr-2" /> Chương Mới Nhất
                             </Link>
                         )}
                         
-                        {/* Nút Tóm tắt Truyện */}
                         <button
                             onClick={handleTomTatTruyen}
                             disabled={isSummaryLoading}
@@ -192,10 +169,8 @@ function StoryDetail() {
                     </div>
                 </div>
 
-                {/* 2. Cột Phải: Thông tin và Chương */}
                 <div className="w-full lg:w-2/3">
 
-                    {/* HIỂN THỊ KẾT QUẢ TÓM TẮT (nếu có) */}
                     {(summary || isSummaryLoading || summaryError) && (
                         <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-lg shadow-md mb-6">
                             <h2 className="text-xl font-bold mb-2 text-yellow-700 flex items-center">
@@ -214,10 +189,8 @@ function StoryDetail() {
                     )}
 
 
-                    {/* A. Thông tin tóm tắt */}
                     <div className="p-4 bg-gray-50 rounded-xl shadow-inner mb-6">
                         <h2 className="text-xl font-bold mb-3 text-red-600 border-b pb-1">Thông Tin Cơ Bản</h2>
-
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-gray-700">
                             <p className="flex items-center"><IconUserEdit className="w-4 h-4 text-red-500 mr-2" /> Tác giả: {story.TacGia}</p>
                             <p className="flex items-center"><IconRunning className={`w-4 h-4 mr-2 ${statusColor}`} /> Trạng thái: <span className="font-semibold ml-1 text-red-600">{statusText}</span></p>
@@ -241,47 +214,15 @@ function StoryDetail() {
                         </div>
                     </div>
 
-                    {/* B. Mô tả Truyện */}
                     <h2 className="text-2xl font-bold mb-3 text-gray-800">Mô Tả Truyện (Của Tác Giả)</h2>
                     <div className="text-gray-600 leading-relaxed bg-white p-5 rounded-xl shadow-md border border-gray-100 mb-6">
                         <p className="whitespace-pre-wrap">{story.MoTa}</p>
                     </div>
 
-                    {/* C. Danh sách Chương (Đầu tiên) */}
-                    <h2 className="text-2xl font-bold mb-3 text-gray-800">Danh Sách Chương ({chapters.length})</h2>
+                    <h2 className="text-2xl font-bold mb-3 text-gray-800">Danh Sách Chương</h2>
 
-                    {chapters && chapters.length > 0 ? (
-                        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-md divide-y divide-gray-100">
-                            {chapters
-                                .slice(0, 10) // Chỉ hiển thị 10 chương đầu, khuyến khích dùng Pagination ở đây
-                                .map(chapter => (
-                                    <Link
-                                        key={chapter.CTID}
-                                        to={`/read/${story.TID}/${chapter.CTID}`}
-                                        className="p-4 flex justify-between items-center bg-white hover:bg-red-50 transition-colors"
-                                    >
-                                        <span className="font-medium text-gray-800 group-hover:text-red-600">
-                                            {chapter.TenChuongTruyen}
-                                        </span>
-                                        <span className="text-sm text-gray-500">
-                                            {(new Date(chapter.NgayDang)).toLocaleDateString()}
-                                        </span>
-                                    </Link>
-                                ))}
-                        </div>
-                    ) : (
-                        <div className="text-center p-5 bg-gray-50 rounded-lg text-gray-500">
-                            Hiện tại truyện chưa có chương nào được đăng.
-                        </div>
-                    )}
+                    {story.TID && <ChapterListDisplay comicId={story.TID} />}
 
-                    {chapters.length > 10 && (
-                        <div className="mt-4 text-center">
-                            <button className="text-red-600 font-semibold hover:text-red-700 transition-colors">
-                                Xem tất cả các chương khác...
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

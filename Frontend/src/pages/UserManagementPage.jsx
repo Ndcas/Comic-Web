@@ -1,194 +1,249 @@
 // src/pages/UserManagementPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Search, ListFilter, Lock, Unlock, Shield, Mail } from 'lucide-react';
-// import { toast } from 'react-toastify'; // Nếu bạn đang sử dụng
+// 🚨 ĐÃ SỬA LỖI IMPORT: Thay thế import 'authAxios' bằng import 'useAuthAxios'
+// (Giả định hook này đã được export trong AuthContext.jsx)
+import { useAuthAxios } from '../utils/AuthContext'; 
 
-// Dữ liệu mẫu (Thay thế bằng API data)
-const MOCK_USERS = [
-  { ID: 101, Username: "danny_user", Email: "danny@example.com", Role: "Admin", Status: "Active", JoinedDate: "2023-01-01" },
-  { ID: 102, Username: "user_hoangan", Email: "hoangan@email.com", Role: "Member", Status: "Active", JoinedDate: "2023-05-15" },
-  { ID: 103, Username: "user_bi_khoa", Email: "khoa@email.com", Role: "Member", Status: "Locked", JoinedDate: "2024-03-20" },
-  { ID: 104, Username: "reviewer_01", Email: "review@test.com", Role: "Reviewer", Status: "Active", JoinedDate: "2024-11-01" },
-];
+// Chỉ cần API path vì Base URL sẽ được cung cấp bởi useAuthAxios
+const API_BASE_PATH = '/admin/users'; 
 
 const UserManagementPage = () => {
-  const [users, setUsers] = useState(MOCK_USERS);
-  const [filterStatus, setFilterStatus] = useState('All'); // All, Active, Locked
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
+    // 🚨 GỌI HOOK: Lấy instance Axios đã được cấu hình và đính kèm token
+    const authAxios = useAuthAxios(); 
 
-  // 💡 TODO: Hàm lấy dữ liệu người dùng từ API
-  const fetchUsers = async () => {
-    // try {
-    //   setLoading(true);
-    //   const response = await axios.get('/admin/users/list?status=' + filterStatus + '&search=' + searchTerm);
-    //   setUsers(response.data);
-    // } catch (error) {
-    //   // toast.error("Lỗi tải danh sách người dùng");
-    // } finally {
-    //   setLoading(false);
-    // }
-  };
-  
-  useEffect(() => {
-    // fetchUsers(); // Kích hoạt khi có API thực tế
-  }, [filterStatus, searchTerm]);
+    // State quản lý danh sách người dùng và phân trang
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize] = useState(10); 
+    
+    // State bộ lọc và tìm kiếm
+    const [filterStatus, setFilterStatus] = useState('ACTIVE'); // TRẠNG THÁI: ACTIVE, BANNED
+    const [searchKeyword, setSearchKeyword] = useState('');
+    const [message, setMessage] = useState(null);
 
-  // Hàm hiển thị trạng thái bằng badge
-  const renderStatusBadge = (status) => {
-    switch (status) {
-      case 'Active':
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Hoạt động</span>;
-      case 'Locked':
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Bị khóa</span>;
-      case 'Admin':
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">Admin</span>;
-      default:
-        return <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Khác</span>;
-    }
-  };
-  
-  // Hàm xử lý hành động Khóa/Mở khóa tài khoản
-  const handleLockUnlock = (userId, currentStatus) => {
-      const action = currentStatus === 'Active' ? 'Khóa' : 'Mở khóa';
-      if (window.confirm(`Bạn có chắc chắn muốn ${action} tài khoản ID: ${userId} không?`)) {
-          // 💡 TODO: Gọi API /admin/users/lockUnlock với ID và action
-          // Ví dụ: axios.post('/admin/users/lockUnlock', { userId, action: currentStatus === 'Active' ? 'lock' : 'unlock' });
-          alert(`Đã thực hiện hành động ${action} cho người dùng ID ${userId}`);
-          // Cập nhật trạng thái hiển thị
-          setUsers(users.map(u => u.ID === userId ? { ...u, Status: action === 'Khóa' ? 'Locked' : 'Active' } : u));
-      }
-  }
-
-  // Hàm xử lý Phân quyền
-  const handlePromoteToAdmin = (userId) => {
-      if (window.confirm(`Bạn có chắc chắn muốn cấp quyền Admin cho người dùng ID: ${userId} không?`)) {
-          // 💡 TODO: Gọi API /admin/users/promoteAdmin với ID
-          alert(`Đã cấp quyền Admin cho người dùng ID ${userId}`);
-          // Cập nhật trạng thái hiển thị
-          setUsers(users.map(u => u.ID === userId ? { ...u, Role: 'Admin' } : u));
-      }
-  }
-
-  const filteredUsers = users.filter(user => 
-      filterStatus === 'All' ? true : user.Status === filterStatus
-  ).filter(user => 
-      user.Username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      user.Email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  return (
-    <div className="p-4 bg-gray-50 min-h-full">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">👥 Quản lý Người dùng</h1>
-
-      {/* Thanh Công cụ: Tìm kiếm và Bộ lọc */}
-      <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-md">
+    // --- Hàm Fetch Dữ liệu Người dùng ---
+    const fetchUsers = useCallback(async () => {
+        setLoading(true);
+        setError(null);
         
-        {/* Tìm kiếm */}
-        <div className="flex items-center w-full max-w-md border rounded-lg bg-gray-50">
-          <Search className="w-5 h-5 ml-3 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo Tên hoặc Email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-2.5 bg-transparent focus:outline-none"
-          />
-        </div>
+        try {
+            // Sử dụng authAxios đã lấy từ hook
+            const response = await authAxios.get(API_BASE_PATH, {
+                params: {
+                    page: currentPage,
+                    pageSize: pageSize,
+                    status: filterStatus,
+                    keyword: searchKeyword,
+                }
+            });
 
-        {/* Bộ lọc Trạng thái */}
-        <div className="flex items-center space-x-2">
-          <ListFilter className="w-5 h-5 text-gray-600" />
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="p-2.5 border rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500"
-          >
-            <option value="All">Tất cả Trạng thái</option>
-            <option value="Active">Hoạt động</option>
-            <option value="Locked">Bị khóa</option>
-          </select>
-        </div>
-      </div>
+            setUsers(response.data.users || []);
+            setTotalPages(response.data.totalPages || 1);
+            setTotalItems(response.data.totalItems || 0);
+            
+        } catch (err) {
+            setError(err.response?.data?.error || 'Không thể tải danh sách người dùng.');
+        } finally {
+            setLoading(false);
+        }
+    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword]); // 🚨 QUAN TRỌNG: Thêm authAxios vào dependency array
 
-      {/* Bảng Danh sách Người dùng */}
-      <div className="bg-white p-6 rounded-xl shadow-lg overflow-x-auto">
-        {loading ? (
-          <p className="text-center p-10">Đang tải danh sách người dùng...</p>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID / Username</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vai trò</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredUsers.map((user) => (
-                <tr key={user.ID} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ID: {user.ID} <br/>
-                    <span className="font-semibold">{user.Username}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 flex items-center">
-                    <Mail className="w-4 h-4 mr-1"/> {user.Email}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">
-                    {renderStatusBadge(user.Role)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {renderStatusBadge(user.Status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
+    // --- Hàm Khóa Tài khoản (Ban) ---
+    const handleBanUser = async (UID, TenTaiKhoan) => {
+        const reason = prompt(`Nhập lý do KHÓA tài khoản ${TenTaiKhoan} (ID: ${UID}):`);
+        if (!reason) return;
+
+        try {
+            setMessage(`Đang khóa tài khoản ${TenTaiKhoan}...`);
+            await authAxios.post(`${API_BASE_PATH}/khoa/${UID}`, { LyDo: reason });
+            setMessage(`Tài khoản ${TenTaiKhoan} đã bị KHÓA.`);
+            fetchUsers();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Lỗi khi khóa tài khoản.');
+        } finally {
+            setMessage(null);
+        }
+    };
+
+    // --- Hàm Mở khóa Tài khoản (Unban) ---
+    const handleUnbanUser = async (UID, TenTaiKhoan) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn MỞ KHÓA tài khoản ${TenTaiKhoan} không?`)) return;
+
+        try {
+            setMessage(`Đang mở khóa tài khoản ${TenTaiKhoan}...`);
+            await authAxios.post(`${API_BASE_PATH}/moKhoa/${UID}`);
+            setMessage(`Tài khoản ${TenTaiKhoan} đã được MỞ KHÓA.`);
+            fetchUsers();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Lỗi khi mở khóa tài khoản.');
+        } finally {
+            setMessage(null);
+        }
+    };
+    
+    // --- Xử lý sự kiện phân trang ---
+    const handlePageChange = (page) => {
+        if (page > 0 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
+    // --- Xử lý tìm kiếm ---
+    const handleSearch = (e) => {
+        e.preventDefault();
+        setCurrentPage(1); 
+        fetchUsers();
+    };
+
+    // --- Render Component ---
+    return (
+        <div style={styles.container}>
+            <h2>Quản Lý Danh Sách Người Dùng</h2>
+            
+            {/* Bộ lọc và Tìm kiếm */}
+            <div style={styles.controls}>
+                <div style={styles.filterGroup}>
+                    <label>Trạng thái:</label>
+                    <select 
+                        value={filterStatus} 
+                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                        style={styles.select}
+                    >
+                        <option value="ACTIVE">Hoạt động</option>
+                        <option value="BANNED">Đã Khóa</option>
+                    </select>
+                </div>
+
+                <form onSubmit={handleSearch} style={styles.searchForm}>
+                    <input
+                        type="text"
+                        placeholder="Tìm kiếm theo Tên/Email..."
+                        value={searchKeyword}
+                        onChange={(e) => setSearchKeyword(e.target.value)}
+                        style={styles.input}
+                    />
+                    <button type="submit" style={styles.searchButton}>Tìm</button>
+                </form>
+            </div>
+
+            {error && <p style={styles.error}>{error}</p>}
+            {message && <p style={styles.message}>{message}</p>}
+
+            {loading ? (
+                <p style={styles.loading}>Đang tải danh sách...</p>
+            ) : (
+                <>
+                    <p style={styles.summary}>Tổng cộng: {totalItems} người dùng</p>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th>UID</th>
+                                <th>Tên tài khoản</th>
+                                <th>Email</th>
+                                <th>Vai trò</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày tạo</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.length > 0 ? (
+                                users.map((user) => (
+                                    <tr key={user.UID}>
+                                        <td>{user.UID}</td>
+                                        <td>{user.TenTaiKhoan}</td>
+                                        <td>{user.Email}</td>
+                                        <td>{user.Role}</td>
+                                        <td>
+                                            <span style={styles.statusBadge[user.TrangThai || 'ACTIVE']}>
+                                                {user.TrangThai === 'BANNED' ? 'Đã Khóa' : 'Hoạt động'}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(user.NgayTao).toLocaleDateString('vi-VN')}</td>
+                                        <td>
+                                            {user.TrangThai !== 'BANNED' ? (
+                                                <button 
+                                                    onClick={() => handleBanUser(user.UID, user.TenTaiKhoan)}
+                                                    style={styles.actionButton.ban}
+                                                    disabled={user.Role === 'Admin'} 
+                                                >
+                                                    Khóa
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => handleUnbanUser(user.UID, user.TenTaiKhoan)}
+                                                    style={styles.actionButton.unban}
+                                                >
+                                                    Mở khóa
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan="7" style={{textAlign: 'center'}}>Không tìm thấy người dùng nào.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
                     
-                    {/* Nút Khóa / Mở khóa */}
-                    {user.Status === 'Active' ? (
-                        <button
-                            title="Khóa Tài khoản"
-                            onClick={() => handleLockUnlock(user.ID, 'Active')}
-                            className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
+                    {/* Phân trang */}
+                    <div style={styles.pagination}>
+                        <button 
+                            onClick={() => handlePageChange(currentPage - 1)} 
+                            disabled={currentPage === 1}
+                            style={styles.pageButton}
                         >
-                            <Lock className="w-5 h-5" />
+                            Trước
                         </button>
-                    ) : (
-                        <button
-                            title="Mở khóa Tài khoản"
-                            onClick={() => handleLockUnlock(user.ID, 'Locked')}
-                            className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
+                        <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
+                        <button 
+                            onClick={() => handlePageChange(currentPage + 1)} 
+                            disabled={currentPage === totalPages}
+                            style={styles.pageButton}
                         >
-                            <Unlock className="w-5 h-5" />
+                            Sau
                         </button>
-                    )}
-                    
-                    {/* Nút Phân quyền Admin (Chỉ hiển thị cho Member/Reviewer) */}
-                    {user.Role !== 'Admin' && (
-                        <button
-                            title="Cấp quyền Admin"
-                            onClick={() => handlePromoteToAdmin(user.ID)}
-                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50"
-                        >
-                            <Shield className="w-5 h-5" />
-                        </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        
-        {/* Trường hợp không có dữ liệu */}
-        {filteredUsers.length === 0 && !loading && (
-            <p className="text-center py-8 text-gray-500">Không tìm thấy người dùng nào.</p>
-        )}
-      </div>
-    </div>
-  );
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+// --- Styles cho component ---
+const styles = {
+    container: { padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
+    controls: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' },
+    filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
+    select: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
+    searchForm: { display: 'flex', gap: '5px' },
+    input: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '250px' },
+    searchButton: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' },
+    error: { color: 'red', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    message: { color: 'green', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    loading: { textAlign: 'center', padding: '30px' },
+    summary: { marginBottom: '15px', fontWeight: 'bold' },
+    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px', textAlign: 'left' },
+    statusBadge: {
+        ACTIVE: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.9em' },
+        BANNED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.9em' },
+    },
+    actionButton: {
+        ban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+        unban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+    },
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px', gap: '15px' },
+    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' },
+    pageInfo: { fontWeight: 'bold' },
 };
 
 export default UserManagementPage;

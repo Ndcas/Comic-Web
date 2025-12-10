@@ -1,13 +1,13 @@
-// src/components/Sidebar.jsx
+
 
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom'; // Thêm useNavigate
 import { LayoutDashboard, BookOpen, Users, AlertTriangle, Settings, LogOut } from 'lucide-react'; 
-// Đảm bảo bạn có lucide-react đã cài đặt
+
 
 const Sidebar = () => {
   const location = useLocation();
-  const navigate = useNavigate(); // Khởi tạo useNavigate
+  const navigate = useNavigate(); 
 
   const navItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
@@ -18,10 +18,10 @@ const Sidebar = () => {
   ];
 
   const handleLogout = () => {
-    // 1. Xóa token
+   
     localStorage.removeItem('admin_token');
     
-    // 2. Chuyển hướng đến trang đăng nhập Admin
+    
     navigate('/admin/login', { replace: true });
     
     console.log('Admin Đăng xuất thành công và đã xóa token.');

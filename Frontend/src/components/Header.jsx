@@ -8,7 +8,7 @@ const Header = ({ onHomeClick, isDarkMode, setIsDarkMode }) => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();  
     
-    // 💡 DEBUG LOG: Bật console log để kiểm tra giá trị user
+   
     console.log("DEBUG: Trạng thái User (Header):", user); 
 
     const [searchTerm, setSearchTerm] = useState('');

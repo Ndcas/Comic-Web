@@ -1,124 +1,114 @@
-// src/pages/AdminLoginPage.jsx
+
 
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; 
 import axios from 'axios';
-import { User, Lock, LogIn, Shield } from 'lucide-react';
-import { toast } from 'react-toastify'; 
 
-// Hàm giả định lưu token Admin (Sử dụng localStorage để giữ trạng thái đăng nhập)
-const setAdminToken = (token) => {
-    localStorage.setItem('admin_token', token);
-};
+import { useAuth } from "../utils/AuthContext"; 
+
+
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+const API_BASE_URL = VITE_BACKEND_URL;
 
 const AdminLoginPage = () => {
-    // Chúng ta giữ nguyên 'username' cho trường input, nhưng payload gửi đi là 'Email'
-    const [username, setUsername] = useState(''); 
-    const [password, setPassword] = useState('');
+    
+    const { updateToken } = useAuth(); 
+    
+    const [email, setEmail] = useState('');
+    const [matKhau, setMatKhau] = useState('');
     const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
+    const [error, setError] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        setError(null);
         setLoading(true);
 
-        // 💡 ĐÃ SỬA: Loại bỏ tiền tố '/api' để khớp với Backend Routing và Proxy trong vite.config.js
-        const LOGIN_URL = '/admin/dangNhap'; 
+        if (!email || !matKhau) {
+            setError('Vui lòng nhập đầy đủ Email và Mật khẩu');
+            setLoading(false);
+            return;
+        }
 
         try {
-            // Payload khớp với yêu cầu của Backend: Email và MatKhau
-            const payload = { 
-                Email: username, 
-                MatKhau: password 
-            }; 
-            
-            const response = await axios.post(LOGIN_URL, payload);
-            
-            // Giả sử backend trả về token và thông tin admin
-            const { token, adminInfo } = response.data; 
+          
+            const response = await axios.post(`${API_BASE_URL}/admin/dangNhap`, {
+                Email: email,
+                MatKhau: matKhau,
+            });
 
-            setAdminToken(token);
             
-            toast.success(`Chào mừng Admin ${adminInfo?.name || username}!`);
-            navigate('/admin', { replace: true }); // Chuyển hướng đến Dashboard
-
-        } catch (error) {
-            console.error('Lỗi Đăng nhập Admin:', error);
-            const errorMessage = error.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng.';
-            toast.error(errorMessage);
+            const { token, hanDung, role, email: userEmail, tenTaiKhoan } = response.data;
+            
+         
+            updateToken(token, hanDung, role, userEmail, tenTaiKhoan);
+            
+            
+            
+        } catch (err) {
+            const errorMessage = err.response?.data?.error || 'Lỗi kết nối hệ thống. Vui lòng thử lại.';
+            setError(errorMessage);
+            
         } finally {
             setLoading(false);
         }
     };
 
+    // ... (Phần UI giữ nguyên)
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-            <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8">
-                
-                {/* Tiêu đề & Logo */}
-                <div className="flex flex-col items-center mb-8">
-                    <Shield className="w-10 h-10 text-indigo-600 mb-3" />
-                    <h2 className="text-3xl font-bold text-gray-800">Đăng nhập Admin</h2>
-                    <p className="text-gray-500 text-sm mt-1">Sử dụng tài khoản quản trị viên</p>
-                </div>
-                
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Tên đăng nhập (hoặc Email) */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email / Tên đăng nhập</label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                required
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="admin@example.com"
-                            />
-                        </div>
+        <div style={styles.container}>
+            <div style={styles.loginBox}>
+                <h2 style={styles.title}>🔒 Đăng Nhập Admin</h2>
+                <form onSubmit={handleSubmit}>
+                    {error && <p style={styles.error}>{error}</p>}
+                    
+                    <div style={styles.formGroup}>
+                        <label htmlFor="email" style={styles.label}>Email:</label>
+                        <input
+                            type="email"
+                            id="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            style={styles.input}
+                            disabled={loading}
+                        />
                     </div>
                     
-                    {/* Mật khẩu */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="••••••••"
-                            />
-                        </div>
+                    <div style={styles.formGroup}>
+                        <label htmlFor="password" style={styles.label}>Mật khẩu:</label>
+                        <input
+                            type="password"
+                            id="password"
+                            value={matKhau}
+                            onChange={(e) => setMatKhau(e.target.value)}
+                            required
+                            style={styles.input}
+                            disabled={loading}
+                        />
                     </div>
                     
-                    {/* Nút Đăng nhập */}
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full flex items-center justify-center px-4 py-2.5 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150"
-                    >
-                        {loading ? (
-                            <span className="flex items-center">
-                                <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></span>
-                                Đang xử lý...
-                            </span>
-                        ) : (
-                            <><LogIn className="w-5 h-5 mr-2" /> Đăng nhập</>
-                        )}
+                    <button type="submit" style={styles.button} disabled={loading}>
+                        {loading ? 'Đang xác thực...' : 'Đăng Nhập'}
                     </button>
+                    
                 </form>
-
-                <p className="mt-4 text-center text-sm text-gray-600">
-                    <Link to="/admin/forgot-password" className="text-indigo-600 hover:text-indigo-800">Quên mật khẩu?</Link>
-                </p>
-
             </div>
         </div>
     );
+};
+
+// ... (CSS giữ nguyên)
+const styles = {
+    container: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f4f7f6' },
+    loginBox: { width: '100%', maxWidth: '400px', padding: '40px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' },
+    title: { textAlign: 'center', marginBottom: '30px', color: '#333' },
+    formGroup: { marginBottom: '20px' },
+    label: { display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#555' },
+    input: { width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' },
+    button: { width: '100%', padding: '12px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px', transition: 'background-color 0.3s' },
+    error: { color: 'red', backgroundColor: '#ffe6e6', padding: '10px', borderRadius: '4px', marginBottom: '20px', textAlign: 'center' },
 };
 
 export default AdminLoginPage;

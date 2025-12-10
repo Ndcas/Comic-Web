@@ -1,196 +1,240 @@
-// src/pages/ComicManagementPage.jsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuthAxios } from '../utils/AuthContext'; 
 
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import { BookOpen, Search, Eye, Edit, Trash2, CheckCircle, Clock } from 'lucide-react';
+const API_BASE_PATH = '/admin/comics'; 
 
 const ComicManagementPage = () => {
+    const authAxios = useAuthAxios(); 
+
     const [comics, setComics] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [pageSize] = useState(10); 
     
-    // State cho phân trang và tìm kiếm (có thể mở rộng sau)
-    const [page, setPage] = useState(1);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [totalComics, setTotalComics] = useState(0);
+    const [filterStatus, setFilterStatus] = useState('UNVERIFIED');
+    const [searchKeyword, setSearchKeyword] = useState('');
+    const [message, setMessage] = useState(null);
 
-    // API Endpoint: /truyen?page=...&limit=...
-    const COMIC_API_URL = '/truyen'; 
-
-    // Hàm lấy danh sách truyện từ Backend
-    const fetchComics = async () => {
+    const fetchComics = useCallback(async () => {
         setLoading(true);
         setError(null);
+        
         try {
-            // Thêm Authorization Header để Backend xác thực Admin
-            const token = localStorage.getItem('admin_token');
-            const response = await axios.get(COMIC_API_URL, {
-                params: { 
-                    page: page, 
-                    limit: 10, // Giả sử 10 truyện mỗi trang
-                    q: searchQuery 
-                },
-                headers: {
-                    // Backend của bạn có thể yêu cầu token ở đây
-                    Authorization: `Bearer ${token}`, 
-                },
-                // Bật cookie để Backend đọc refreshToken (nếu cần)
-                withCredentials: true 
+            const response = await authAxios.get(API_BASE_PATH, {
+                params: {
+                    page: currentPage,
+                    pageSize: pageSize,
+                    status: filterStatus,
+                    keyword: searchKeyword,
+                }
             });
 
-            // 💡 TODO: Điều chỉnh theo cấu trúc Response của API /truyen thực tế
-            setComics(response.data.comics || response.data); 
-            setTotalComics(response.data.total || response.data.length); 
-
+            setComics(response.data.comics || []);
+            setTotalPages(response.data.totalPages || 1);
+            setTotalItems(response.data.totalItems || 0);
+            
         } catch (err) {
-            console.error("Lỗi khi lấy dữ liệu truyện:", err);
-            setError("Không thể tải dữ liệu. Vui lòng kiểm tra Server Backend.");
-            toast.error("Lỗi: Không thể tải danh sách truyện.");
+            setError(err.response?.data?.error || 'Không thể tải danh sách truyện.');
         } finally {
             setLoading(false);
         }
-    };
+    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword]); 
 
     useEffect(() => {
         fetchComics();
-    }, [page, searchQuery]); // Tải lại khi thay đổi trang hoặc tìm kiếm
+    }, [fetchComics]);
 
-    // Hàm xử lý duyệt truyện (Ví dụ)
-    const handleVerify = (comicId) => {
-        // 💡 TODO: Gọi API POST /admin/verifyComic
-        toast.info(`Đã gửi yêu cầu duyệt truyện ID: ${comicId}`);
-    };
+    
+    const handleVerifyComic = async (TID) => {
+        if (!window.confirm(`Bạn có chắc chắn muốn DUYỆT truyện ID: ${TID} không?`)) return;
 
-    // Hàm xử lý xóa truyện (Ví dụ)
-    const handleDelete = (comicId) => {
-        // 💡 TODO: Gọi API DELETE /admin/comics/:id
-        if (window.confirm(`Bạn có chắc muốn xóa truyện ID ${comicId} này không?`)) {
-            toast.error(`Đã xóa truyện ID: ${comicId}`);
+        try {
+            setMessage(`Đang duyệt truyện ID: ${TID}...`);
+            await authAxios.post(`${API_BASE_PATH}/duyet/${TID}`);
+            setMessage(`Truyện ID: ${TID} đã được duyệt thành công!`);
+            fetchComics();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Lỗi khi duyệt truyện.');
+        } finally {
+            setMessage(null);
         }
     };
 
+    
+    const handleRejectComic = async (TID) => {
+        const reason = prompt(`Nhập lý do TỪ CHỐI truyện ID: ${TID}:`);
+        if (!reason) return;
 
-    if (loading) return <div className="text-center py-10 text-indigo-600">Đang tải dữ liệu truyện...</div>;
-    if (error) return <div className="text-center py-10 text-red-600">{error}</div>;
+        try {
+            setMessage(`Đang từ chối truyện ID: ${TID}...`);
+            await authAxios.post(`${API_BASE_PATH}/tuChoi/${TID}`, { LyDo: reason });
+            setMessage(`Truyện ID: ${TID} đã bị từ chối.`);
+            fetchComics();
+        } catch (err) {
+            setError(err.response?.data?.error || 'Lỗi khi từ chối truyện.');
+        } finally {
+            setMessage(null);
+        }
+    };
+    
+    
+    const handlePageChange = (page) => {
+        if (page > 0 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
+    
+    const handleSearch = (e) => {
+        e.preventDefault();
+        setCurrentPage(1); 
+        
+        fetchComics(); 
+    };
 
     return (
-        <div className="space-y-6">
+        <div style={styles.container}>
+            <h2>Quản Lý Danh Sách Truyện</h2>
             
-            {/* Thanh Tìm kiếm và Tiêu đề */}
-            <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-md">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                    <BookOpen className="w-6 h-6 mr-2 text-indigo-600"/> Quản lý Truyện ({totalComics} truyện)
-                </h2>
-                <div className="relative w-1/3">
+            <div style={styles.controls}>
+                <div style={styles.filterGroup}>
+                    <label>Trạng thái:</label>
+                    <select 
+                        value={filterStatus} 
+                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                        style={styles.select}
+                    >
+                        <option value="UNVERIFIED">Chờ Duyệt</option>
+                        <option value="VERIFIED">Đã Duyệt</option>
+                        <option value="REJECTED">Đã Từ Chối</option>
+                    </select>
+                </div>
+
+                <form onSubmit={handleSearch} style={styles.searchForm}>
                     <input
                         type="text"
-                        placeholder="Tìm kiếm theo tên truyện..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 pl-10"
+                        placeholder="Tìm kiếm theo Tên truyện..."
+                        value={searchKeyword}
+                        onChange={(e) => setSearchKeyword(e.target.value)}
+                        style={styles.input}
                     />
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                </div>
+                    <button type="submit" style={styles.searchButton}>Tìm</button>
+                </form>
             </div>
 
-            {/* Bảng Danh sách Truyện */}
-            <div className="bg-white p-6 rounded-lg shadow-lg overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên Truyện</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tác giả</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lượt xem</th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {comics.map((comic) => (
-                            <tr key={comic.id}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{comic.id}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">{comic.title}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{comic.author}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                        comic.status === 'Verified' ? 'bg-green-100 text-green-800' : 
-                                        comic.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 
-                                        'bg-red-100 text-red-800'
-                                    }`}>
-                                        {comic.status === 'Verified' ? <CheckCircle className="w-4 h-4 mr-1"/> : <Clock className="w-4 h-4 mr-1"/>}
-                                        {comic.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{comic.views}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
-                                    
-                                    {/* Nút Duyệt truyện */}
-                                    {comic.status === 'Pending' && (
-                                        <button
-                                            onClick={() => handleVerify(comic.id)}
-                                            className="text-green-600 hover:text-green-900 p-1 rounded hover:bg-green-50"
-                                            title="Duyệt"
-                                        >
-                                            <CheckCircle className="w-5 h-5" />
-                                        </button>
-                                    )}
+            {error && <p style={styles.error}>{error}</p>}
+            {message && <p style={styles.message}>{message}</p>}
 
-                                    {/* Nút Chi tiết/Xem */}
-                                    <Link 
-                                        to={`/story/${comic.id}`} 
-                                        target="_blank"
-                                        className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-50"
-                                        title="Xem chi tiết"
-                                    >
-                                        <Eye className="w-5 h-5" />
-                                    </Link>
-                                    
-                                    {/* Nút Chỉnh sửa */}
-                                    <button
-                                        // 💡 TODO: Thêm logic chuyển hướng đến trang chỉnh sửa
-                                        className="text-yellow-600 hover:text-yellow-900 p-1 rounded hover:bg-yellow-50"
-                                        title="Chỉnh sửa"
-                                    >
-                                        <Edit className="w-5 h-5" />
-                                    </button>
-                                    
-                                    {/* Nút Xóa */}
-                                    <button
-                                        onClick={() => handleDelete(comic.id)}
-                                        className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
-                                        title="Xóa"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                </td>
+            {loading ? (
+                <p style={styles.loading}>Đang tải danh sách...</p>
+            ) : (
+                <>
+                    <p style={styles.summary}>Tổng cộng: {totalItems} truyện</p>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr>
+                                <th>TID</th>
+                                <th>Tên Truyện</th>
+                                <th>Tác giả</th>
+                                <th>Trạng thái</th>
+                                <th>Ngày tạo</th>
+                                <th>Hành động</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Phân trang (Có thể bổ sung sau) */}
-            <div className="flex justify-center items-center space-x-4">
-                <button
-                    onClick={() => setPage(p => Math.max(p - 1, 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 border rounded-lg bg-white shadow hover:bg-gray-100 disabled:opacity-50"
-                >
-                    Trang trước
-                </button>
-                <span className="text-gray-700">Trang {page} / {Math.ceil(totalComics / 10)}</span>
-                <button
-                    onClick={() => setPage(p => p + 1)}
-                    disabled={page * 10 >= totalComics}
-                    className="px-4 py-2 border rounded-lg bg-white shadow hover:bg-gray-100 disabled:opacity-50"
-                >
-                    Trang sau
-                </button>
-            </div>
+                        </thead>
+                        <tbody>
+                            {comics.length > 0 ? (
+                                comics.map((comic) => (
+                                    <tr key={comic.TID}>
+                                        <td>{comic.TID}</td>
+                                        <td>{comic.TenTruyen}</td>
+                                        <td>{comic.TenTaiKhoanTacGia || 'N/A'}</td>
+                                        <td>
+                                            <span style={styles.statusBadge[comic.TrangThai || 'UNVERIFIED']}>
+                                                {comic.TrangThai === 'VERIFIED' ? 'Đã Duyệt' : comic.TrangThai === 'REJECTED' ? 'Từ Chối' : 'Chờ Duyệt'}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(comic.NgayTao).toLocaleDateString('vi-VN')}</td>
+                                        <td>
+                                            {comic.TrangThai === 'UNVERIFIED' && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => handleVerifyComic(comic.TID)}
+                                                        style={styles.actionButton.verify}
+                                                    >
+                                                        Duyệt
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleRejectComic(comic.TID)}
+                                                        style={styles.actionButton.reject}
+                                                    >
+                                                        Từ chối
+                                                    </button>
+                                                </>
+                                            )}
+                                            {(comic.TrangThai === 'VERIFIED' || comic.TrangThai === 'REJECTED') && (
+                                                <button style={styles.actionButton.view}>Chi tiết</button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan="6" style={{textAlign: 'center'}}>Không tìm thấy truyện nào.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                    
+                    <div style={styles.pagination}>
+                        <button 
+                            onClick={() => handlePageChange(currentPage - 1)} 
+                            disabled={currentPage === 1}
+                            style={styles.pageButton}
+                        >
+                            Trước
+                        </button>
+                        <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
+                        <button 
+                            onClick={() => handlePageChange(currentPage + 1)} 
+                            disabled={currentPage === totalPages}
+                            style={styles.pageButton}
+                        >
+                            Sau
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
+};
+
+const styles = {
+    container: { padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
+    controls: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' },
+    filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
+    select: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
+    searchForm: { display: 'flex', gap: '5px' },
+    input: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '250px' },
+    searchButton: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' },
+    error: { color: 'red', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    message: { color: 'green', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
+    loading: { textAlign: 'center', padding: '30px' },
+    summary: { marginBottom: '15px', fontWeight: 'bold' },
+    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px' },
+    statusBadge: {
+        UNVERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.9em' },
+        VERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.9em' },
+        REJECTED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.9em' },
+    },
+    actionButton: {
+        verify: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+        reject: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+        view: { padding: '5px 10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }
+    },
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px', gap: '15px' },
+    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' },
+    pageInfo: { fontWeight: 'bold' }
 };
 
 export default ComicManagementPage;
