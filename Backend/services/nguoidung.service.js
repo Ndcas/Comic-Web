@@ -443,7 +443,7 @@ async function napDiem(ndid, diem) {
                 error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
             };
         }
-        let returnPath = BASE_URL + `/xuLyKetQuaNapDiem/${nguoiDung.NDID}`;
+        let returnPath = BASE_URL + `/nguoiDung/xuLyKetQuaNapDiem/${nguoiDung.NDID}`;
         let url = getURL(diem * 1000, returnPath);
         logger.info(`Đã tạo URL nạp điểm ${url.transID}: ${url.url}`);
         saveToCache(`TransactionID:${url.transID}`, '1');

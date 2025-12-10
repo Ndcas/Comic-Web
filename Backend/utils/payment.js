@@ -17,12 +17,11 @@ function getURL(amount, returnPath) {
     let year = currentDate.getFullYear();
     let random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
     let reference_number = `${hour}${minute}${second}${day}${month}${year}${random}`;
-    let url_return = `${BASE_URL}${returnPath}`;
-    let signature = sha256(`${amount}|${currency}|${reference_number}|${url_return}|${VTC_PAY_WEBSITE_ID}|${VTC_PAY_SECRET_KEY}`);
+    let signature = sha256(`${amount}|${currency}|${reference_number}|${returnPath}|${VTC_PAY_WEBSITE_ID}|${VTC_PAY_SECRET_KEY}`);
     url.searchParams.set('amount', amount);
     url.searchParams.set('currency', currency);
     url.searchParams.set('reference_number', reference_number);
-    url.searchParams.set('url_return', url_return);
+    url.searchParams.set('url_return', returnPath);
     url.searchParams.set('website_id', VTC_PAY_WEBSITE_ID);
     url.searchParams.set('signature', signature);
     return {
@@ -108,7 +107,7 @@ function verify(query) {
         return {
             ok: false,
             error: error,
-            transID: trans_ref_no
+            transID: reference_number
         };
     }
     let checkSumString = `${amount}|${message}|${payment_type}|${reference_number}|${status}|${trans_ref_no}|${website_id}|${VTC_PAY_SECRET_KEY}`;
@@ -116,12 +115,12 @@ function verify(query) {
         return {
             ok: false,
             error: 'Yêu cầu không khớp với chuỗi ký',
-            transID: trans_ref_no
+            transID: reference_number
         };
     }
     return {
         ok: true,
-        transID: trans_ref_no
+        transID: reference_number
     };
 }
 
