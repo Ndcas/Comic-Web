@@ -1,17 +1,14 @@
-// src/utils/nguoiDungApi.js
-
-// 💡 LƯU Ý: Đặt BASE_URL là cổng gốc, giả định Router Back-end gắn dưới /nguoiDung
 const BASE_URL = 'http://localhost:8080';
 
 const apiCall = async (endpoint, method = 'GET', token = null, body = null) => {
-    // endpoint có thể là: /nguoiDung/napDiem?diem=100
+    
     const url = `${BASE_URL}${endpoint}`; 
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const config = { method, headers };
     
-    // Chỉ thêm body khi method không phải là GET và có body
+    
     if (body && method !== 'GET') config.body = JSON.stringify(body);
 
     const response = await fetch(url, config);
@@ -57,12 +54,8 @@ export const xoaKhoiDanhSachYeuThich = async (token, TID) =>
 
 // ===================== API ĐIỂM =====================
 
-/**
- * Tạo yêu cầu nạp điểm và nhận về URL thanh toán.
- * Back-end mong muốn: GET /nguoiDung/napDiem?diem=X
- */
 export const napDiem = async (token, diem) => {
-    // 💡 ĐÃ SỬA: Chuyển sang GET và tạo endpoint với Query Parameter
+    
     const endpoint = `/nguoiDung/napDiem?diem=${diem}`;
     return apiCall(endpoint, 'GET', token);
 }

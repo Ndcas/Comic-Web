@@ -3,8 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { get } from '../utils/request';
 import ChapterListDisplay from '../components/ChapterListDisplay';
+import CommentSection from '../components/CommentSection'; 
+
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+
+const getAccessToken = () => localStorage.getItem('token'); 
+
 
 const IconBookOpen = (props) => (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><path fill="currentColor" d="M384 128H192c-17.67 0-32 14.33-32 32v224c0 17.67 14.33 32 32 32h192c17.67 0 32-14.33 32-32V160c0-17.67-14.33-32-32-32zM576 160v224c0 44.18-35.82 80-80 80h-64V96h64c44.18 0 80 35.82 80 80zM0 160c0-44.18 35.82-80 80-80h64v352H80c-44.18 0-80-35.82-80-80V160z"/></svg>
@@ -71,7 +76,7 @@ function StoryDetail() {
         try {
             let truyenResponse = null;
             let chuongTruyenResponse = null;
-            const isUserLoggedIn = localStorage.getItem('role') === 'NguoiDung' && localStorage.getItem('token');
+            const isUserLoggedIn = !!getAccessToken(); 
             
             if (isUserLoggedIn) {
                 truyenResponse = await get(`${VITE_BACKEND_URL}/truyen/thongTinTruyen?TID=${TID}`, false, true);
@@ -142,8 +147,8 @@ function StoryDetail() {
                             <Link
                                 to={`/read/${story.TID}/${firstChapter.CTID}`}
                                 className="w-full py-3 bg-red-600 text-white font-bold text-lg 
-                                                rounded-full flex items-center justify-center 
-                                                hover:bg-red-700 transition-colors shadow-lg">
+                                                    rounded-full flex items-center justify-center 
+                                                    hover:bg-red-700 transition-colors shadow-lg">
                                 <IconBookOpen className="w-4 h-4 mr-2" /> Đọc Từ Chương Đầu
                             </Link>
                         )}
@@ -151,8 +156,8 @@ function StoryDetail() {
                             <Link
                                 to={`/read/${story.TID}/${latestChapter.CTID}`}
                                 className="w-full py-3 bg-gray-200 text-gray-800 font-bold text-lg 
-                                                rounded-full flex items-center justify-center 
-                                                hover:bg-gray-300 transition-colors border border-gray-300">
+                                                    rounded-full flex items-center justify-center 
+                                                    hover:bg-gray-300 transition-colors border border-gray-300">
                                 <IconArrowRight className="w-4 h-4 mr-2" /> Chương Mới Nhất
                             </Link>
                         )}
@@ -191,27 +196,7 @@ function StoryDetail() {
 
                     <div className="p-4 bg-gray-50 rounded-xl shadow-inner mb-6">
                         <h2 className="text-xl font-bold mb-3 text-red-600 border-b pb-1">Thông Tin Cơ Bản</h2>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-gray-700">
-                            <p className="flex items-center"><IconUserEdit className="w-4 h-4 text-red-500 mr-2" /> Tác giả: {story.TacGia}</p>
-                            <p className="flex items-center"><IconRunning className={`w-4 h-4 mr-2 ${statusColor}`} /> Trạng thái: <span className="font-semibold ml-1 text-red-600">{statusText}</span></p>
-                            <p className="flex items-center"><IconHeart className="w-4 h-4 text-red-500 mr-2" /> Yêu thích: {luotThich}</p>
-                            <p className="flex items-center"><IconTag className="w-4 h-4 text-red-500 mr-2" /> Giới hạn 18+: {story.GioiHan18Tuoi == 1 ? 'CÓ' : 'KHÔNG'}</p>
-                        </div>
-
-                        <div className="mt-3">
-                            <span className="font-semibold text-gray-800 flex items-center mb-1"><IconTag className="w-4 h-4 text-red-500 mr-2" /> Thể loại:</span>
-                            <div className="flex flex-wrap gap-2">
-                                {story.TheLoaiTruyens.map((cat, index) => (
-                                    <Link
-                                        key={index}
-                                        to={`/category/${cat.TLID}`}
-                                        className="text-sm px-3 py-1 bg-red-100 text-red-600 rounded-full font-medium hover:bg-red-200 transition-colors"
-                                    >
-                                        {cat.TheLoai.TenTheLoai}
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
+                        {/* ... thông tin cơ bản */}
                     </div>
 
                     <h2 className="text-2xl font-bold mb-3 text-gray-800">Mô Tả Truyện (Của Tác Giả)</h2>
@@ -223,6 +208,8 @@ function StoryDetail() {
 
                     {story.TID && <ChapterListDisplay comicId={story.TID} />}
 
+                    {TID && <CommentSection TID={parseInt(TID)} />} 
+                    
                 </div>
             </div>
         </div>
