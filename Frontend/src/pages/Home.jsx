@@ -76,13 +76,13 @@ const NewChapterList = ({ list }) => (
                             <p className="font-semibold text-gray-800 hover:text-red-600 truncate text-base" title={item.TenTruyen}>
                                 {item.TenTruyen}
                             </p>
-                            {/* <p className="text-xs text-gray-500 mt-1">
-                                <span className="font-medium text-blue-600 hover:text-blue-800">Ch. {item.lastChapter}</span> • {item.genre}
-                            </p> */}
+                            <p className="text-xs text-gray-500 mt-1">
+                                <span className="font-medium text-blue-600 hover:text-blue-800">{item.TenChuongTruyen}</span>
+                            </p>
                         </div>
-                        {/* <span className="text-xs text-gray-400 ml-4 whitespace-nowrap text-right pt-1">
-                            {item.lastUpdated}
-                        </span> */}
+                        <span className="text-xs text-gray-400 ml-4 whitespace-nowrap text-right pt-1">
+                            {(new Date(item.NgayDang)).toLocaleDateString('vi-VN')}
+                        </span>
                     </Link>
                 </li>
             ))}
@@ -118,10 +118,10 @@ function Home() {
             let truyenMoiRequest = null;
             if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
                 truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`, false, true);
-                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoi?page=1`, false, true);
+                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoiCapNhat`, false, true);
             } else {
                 truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`);
-                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoi?page=1`);
+                truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoiCapNhat`);
             }
             let truyenHot = await truyenHotRequest.json();
             if (!truyenHotRequest.ok) {
