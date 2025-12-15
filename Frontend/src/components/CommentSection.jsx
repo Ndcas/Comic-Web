@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// import { FiSend, FiUser } from 'react-icons/fi'; // Ví dụ nếu bạn có thư viện icon
+
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const API_PREFIX = '/truyen'; 
 
 const getAccessToken = () => localStorage.getItem('token'); 
 
-// Component con: Hiển thị một bình luận duy nhất
+
 const CommentItem = ({ comment, formatTime }) => {
-    // Tạo màu nền avatar ngẫu nhiên dựa trên tên người dùng (để có tính thẩm mỹ)
+    
     const username = comment.NguoiDung?.TenTaiKhoan || 'Người dùng ẩn danh';
     const initial = username.charAt(0).toUpperCase();
     const avatarColor = `hsl(${username.length * 40 % 360}, 70%, 50%)`;
