@@ -355,11 +355,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
         let likeCriteria = { [Op.substring]: keyword };
         let criteria = {
             DaDuyet: 1,
-            [Op.or]: [{
-                TenTruyen: likeCriteria,
-                MoTa: likeCriteria,
-                TacGia: likeCriteria
-            }]
+            [Op.or]: [{ TenTruyen: likeCriteria }, { MoTa: likeCriteria }, { TacGia: likeCriteria }]
         };
         if (!showR18) {
             criteria.GioiHan18Tuoi = 0;
@@ -384,7 +380,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
                 GROUP BY TID
             ) AS a
             ON Truyen.TID = a.TID
-            WHERE Truyen.DaDuyet = 1 AND TenTruyen LIKE :likeCriteria AND MoTa LIKE :likeCriteria AND TacGia LIKE :likeCriteria ${r18Condition}
+            WHERE Truyen.DaDuyet = 1 AND (TenTruyen LIKE :likeCriteria OR MoTa LIKE :likeCriteria OR TacGia LIKE :likeCriteria) ${r18Condition}
             ORDER BY a.NgayDang DESC
             LIMIT :limit OFFSET :offset;
         `;
@@ -394,8 +390,7 @@ async function timTruyenTheoTuKhoa(keyword, page, token = null) {
                 limit: COMICS_PER_PAGE,
                 offset: (page - 1) * COMICS_PER_PAGE
             },
-            type: QueryTypes.SELECT,
-            logging: true
+            type: QueryTypes.SELECT
         });
         return {
             ok: true,
