@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthAxios } from '../utils/AuthContext'; 
 
-const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const API_UNVERIFIED_COMICS_PATH = '/admin/truyenChuaDuyet'; 
-const API_VERIFY_REJECT_COMIC_PATH = '/admin/duyetTruyen'; 
+
+const API_UNVERIFIED_COMICS_PATH = '/truyen/truyenChuaDuyet'; 
+const API_VERIFY_REJECT_COMIC_PATH = '/truyen/duyetTruyen';
 
 const ComicManagementPage = () => {
     const authAxios = useAuthAxios(); 
@@ -37,19 +37,51 @@ const ComicManagementPage = () => {
             setComics([]);
             return; 
         }
+        
+        // --- Bổ sung logic Tìm kiếm và Phân trang (Nếu có) ---
+        // Xây dựng tham số query:
+        const params = {
+            page: currentPage,
+            limit: pageSize,
+            // Thêm từ khóa tìm kiếm
+            keyword: searchKeyword.trim(), 
+        };
+        
+        // Loại bỏ các tham số null/undefined/rỗng/0
+        const query = Object.keys(params)
+            .filter(key => params[key] && params[key] !== '') 
+            .map(key => `${key}=${encodeURIComponent(params[key])}`)
+            .join('&');
+        
+        const fullApiPath = query ? `${apiPath}?${query}` : apiPath;
+        // ----------------------------------------------------
 
         try {
-            const response = await authAxios.get(apiPath);
+            // Sửa đổi để gọi fullApiPath
+            const response = await authAxios.get(fullApiPath);
             
-            const fetchedComics = response.data.truyens || []; 
+            // Backend có thể trả về pagination data hoặc chỉ array
+            const fetchedComics = response.data.truyens || response.data.data || response.data || []; 
+            const total = response.data.totalItems || fetchedComics.length || 0;
+            const totalPgs = response.data.totalPages || 1;
 
             setComics(fetchedComics); 
-            setTotalItems(fetchedComics.length || 0);
-            setTotalPages(1); 
+            setTotalItems(total);
+            setTotalPages(totalPgs); 
             
         } catch (err) {
-            const errorMessage = err.response?.data?.error 
-                || (err.response?.status === 404 ? `Lỗi 404: Không tìm thấy đường dẫn ${apiPath}. Kiểm tra lại cấu hình Router Backend.` : `Lỗi tải truyện từ ${apiPath}. Backend trả về 401 hoặc lỗi Server.`);
+            // Đã cập nhật thông báo lỗi để rõ ràng hơn
+            const status = err.response?.status;
+            let errorMessage = `Lỗi tải truyện từ ${fullApiPath}.`;
+
+            if (status === 404) {
+                errorMessage = `Lỗi 404: Không tìm thấy đường dẫn ${fullApiPath}. Vui lòng kiểm tra lại Base URL và Router Backend.`;
+            } else if (status === 401 || status === 403) {
+                errorMessage = `Lỗi xác thực (401/403): Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập.`;
+            } else if (err.response?.data?.error) {
+                errorMessage = `Backend Error: ${err.response.data.error}`;
+            }
+
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -116,6 +148,7 @@ const ComicManagementPage = () => {
     
     const handleSearch = (e) => {
         e.preventDefault();
+        // Bắt buộc phải chuyển về trang 1 khi tìm kiếm hoặc refresh
         if (currentPage !== 1) {
             setCurrentPage(1); 
         } else {
@@ -222,7 +255,8 @@ const ComicManagementPage = () => {
                         </tbody>
                     </table>
                     
-                    {false && (
+                    {/* Bật lại Phân trang nếu Backend đã hỗ trợ phân trang thực sự */}
+                    {totalPages > 1 && (
                         <div style={styles.pagination}>
                             <button 
                                 onClick={() => handlePageChange(currentPage - 1)} 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth, useAuthAxios } from '../utils/AuthContext'; 
 
-const API_PATH = '/admin/baoCaoHeThong'; 
+const API_PATH = '/admin/baoCaoHeThong'; // Giữ nguyên theo xác nhận của bạn
 const REFRESH_INTERVAL_MS = 300000; 
 
 const DashboardPage = () => {
@@ -21,7 +21,33 @@ const DashboardPage = () => {
         
         try {
             const response = await authAxios.get(API_PATH); 
-            setReport(response.data);
+            
+            // ❌ SỬA LỖI GÁN DỮ LIỆU: Kiểm tra response.data và các trường con (baoCao, data)
+            let reportData = response.data;
+            
+            // Thử lấy dữ liệu từ trường 'baoCao' hoặc 'data' nếu nó không phải là dữ liệu chính
+            if (reportData && reportData.baoCao) {
+                reportData = reportData.baoCao;
+            } else if (reportData && reportData.data) {
+                reportData = reportData.data;
+            }
+
+            // Kiểm tra cấu trúc dữ liệu tối thiểu trước khi gán
+            if (reportData && (reportData.numOfUsers !== undefined || reportData.numOfComics !== undefined)) {
+                setReport(reportData);
+            } else if (Array.isArray(reportData) && reportData.length > 0) {
+                 // Trường hợp đặc biệt Backend trả về mảng, lấy phần tử đầu tiên
+                 setReport(reportData[0]);
+            } else {
+                // Nếu vẫn không có dữ liệu hợp lệ (ví dụ: Backend trả về object rỗng)
+                setReport({
+                    numOfUsers: 0, numOfComics: 0, numOfChapters: 0,
+                    verifiedComics: 0, unverifiedComics: 0, rejectedComics: 0,
+                    unprocessedComicReports: 0, unprocessedCommentReports: 0,
+                    reportTime: new Date().toISOString(),
+                    viewsByDays: {} // Tránh lỗi undefined
+                });
+            }
             
         } catch (err) {
             const errorMessage = err.response?.data?.error || 'Không thể tải báo cáo hệ thống. Vui lòng kiểm tra lại kết nối.';
@@ -32,6 +58,8 @@ const DashboardPage = () => {
                 navigate('/admin/login');
             } else {
                 setError(errorMessage);
+                // Dọn dẹp report nếu có lỗi nghiêm trọng
+                setReport(null);
             }
         } finally {
             setLoading(false);
@@ -49,6 +77,9 @@ const DashboardPage = () => {
     const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
     const formatDate = (dateString) => {
         if (!dateString) return 'Chưa có dữ liệu';
+        // Xử lý trường hợp reportTime là dấu "Chưa có dữ liệu" từ state default
+        if (dateString.includes('Chưa có dữ liệu')) return dateString;
+        
         return new Date(dateString).toLocaleString('vi-VN', {
             year: 'numeric', month: '2-digit', day: '2-digit',
             hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -87,15 +118,16 @@ const DashboardPage = () => {
                 <Card title="Báo cáo Truyện chưa xử lý" metric={formatNumber(report.unprocessedComicReports)} color="#ff5722" icon="⚠️" />
                 <Card title="Báo cáo Bình luận chưa xử lý" metric={formatNumber(report.unprocessedCommentReports)} color="#ff5722" icon="💬" />
                 
-                <Card title="Tổng Lợi nhuận (Điểm)" metric={formatNumber(report.totalProfitPoints || 0)} color="#4c51bf" icon="💰" />
+                {/* Đã xóa Card Lợi nhuận */}
             </div>
             
             <div style={styles.dataSection}>
-                <h3>Dữ liệu Lợi nhuận & Lượt xem (30 Ngày)</h3>
-                <p style={styles.subHeader}>Dữ liệu thô để vẽ biểu đồ/đồ thị</p>
+                {/* Đã sửa Tiêu đề: Chỉ còn Lượt xem */}
+                <h3>Dữ liệu Lượt xem (30 Ngày)</h3>
+                <p style={styles.subHeader}>Dữ liệu thô để vẽ biểu đồ/đồ thị (viewsByDays)</p>
                 
                 <div style={styles.dataContainer}>
-                    <DataBox title="Lợi nhuận (Điểm) theo ngày" data={report.profitPointsByDays} />
+                    {/* Giữ lại DataBox để thầy bạn thấy dữ liệu viewsByDays đã được tải */}
                     <DataBox title="Lượt xem theo ngày" data={report.viewsByDays} />
                 </div>
                 
@@ -117,7 +149,7 @@ const Card = ({ title, metric, color, icon }) => (
 );
 
 const DataBox = ({ title, data }) => {
-    const isDataEmpty = !data || Object.keys(data).length === 0;
+    const isDataEmpty = !data || (typeof data === 'object' && Object.keys(data).length === 0) || (Array.isArray(data) && data.length === 0);
 
     return (
         <div style={styles.dataBox}>
