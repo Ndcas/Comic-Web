@@ -38,16 +38,15 @@ const ComicManagementPage = () => {
             return; 
         }
         
-        // --- Bổ sung logic Tìm kiếm và Phân trang (Nếu có) ---
-        // Xây dựng tham số query:
+        
         const params = {
             page: currentPage,
             limit: pageSize,
-            // Thêm từ khóa tìm kiếm
+          
             keyword: searchKeyword.trim(), 
         };
         
-        // Loại bỏ các tham số null/undefined/rỗng/0
+      0
         const query = Object.keys(params)
             .filter(key => params[key] && params[key] !== '') 
             .map(key => `${key}=${encodeURIComponent(params[key])}`)
@@ -57,10 +56,9 @@ const ComicManagementPage = () => {
         // ----------------------------------------------------
 
         try {
-            // Sửa đổi để gọi fullApiPath
             const response = await authAxios.get(fullApiPath);
             
-            // Backend có thể trả về pagination data hoặc chỉ array
+           
             const fetchedComics = response.data.truyens || response.data.data || response.data || []; 
             const total = response.data.totalItems || fetchedComics.length || 0;
             const totalPgs = response.data.totalPages || 1;
@@ -70,7 +68,7 @@ const ComicManagementPage = () => {
             setTotalPages(totalPgs); 
             
         } catch (err) {
-            // Đã cập nhật thông báo lỗi để rõ ràng hơn
+           
             const status = err.response?.status;
             let errorMessage = `Lỗi tải truyện từ ${fullApiPath}.`;
 
@@ -148,7 +146,7 @@ const ComicManagementPage = () => {
     
     const handleSearch = (e) => {
         e.preventDefault();
-        // Bắt buộc phải chuyển về trang 1 khi tìm kiếm hoặc refresh
+       
         if (currentPage !== 1) {
             setCurrentPage(1); 
         } else {

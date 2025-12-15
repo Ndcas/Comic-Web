@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth, useAuthAxios } from '../utils/AuthContext'; 
 
-const API_PATH = '/admin/baoCaoHeThong'; // Giữ nguyên theo xác nhận của bạn
+const API_PATH = '/admin/baoCaoHeThong'; 
 const REFRESH_INTERVAL_MS = 300000; 
 
 const DashboardPage = () => {
@@ -22,30 +22,30 @@ const DashboardPage = () => {
         try {
             const response = await authAxios.get(API_PATH); 
             
-            // ❌ SỬA LỖI GÁN DỮ LIỆU: Kiểm tra response.data và các trường con (baoCao, data)
+         
             let reportData = response.data;
             
-            // Thử lấy dữ liệu từ trường 'baoCao' hoặc 'data' nếu nó không phải là dữ liệu chính
+            
             if (reportData && reportData.baoCao) {
                 reportData = reportData.baoCao;
             } else if (reportData && reportData.data) {
                 reportData = reportData.data;
             }
 
-            // Kiểm tra cấu trúc dữ liệu tối thiểu trước khi gán
+         
             if (reportData && (reportData.numOfUsers !== undefined || reportData.numOfComics !== undefined)) {
                 setReport(reportData);
             } else if (Array.isArray(reportData) && reportData.length > 0) {
-                 // Trường hợp đặc biệt Backend trả về mảng, lấy phần tử đầu tiên
+                
                  setReport(reportData[0]);
             } else {
-                // Nếu vẫn không có dữ liệu hợp lệ (ví dụ: Backend trả về object rỗng)
+                
                 setReport({
                     numOfUsers: 0, numOfComics: 0, numOfChapters: 0,
                     verifiedComics: 0, unverifiedComics: 0, rejectedComics: 0,
                     unprocessedComicReports: 0, unprocessedCommentReports: 0,
                     reportTime: new Date().toISOString(),
-                    viewsByDays: {} // Tránh lỗi undefined
+                    viewsByDays: {} 
                 });
             }
             
@@ -58,7 +58,7 @@ const DashboardPage = () => {
                 navigate('/admin/login');
             } else {
                 setError(errorMessage);
-                // Dọn dẹp report nếu có lỗi nghiêm trọng
+               
                 setReport(null);
             }
         } finally {
@@ -77,7 +77,7 @@ const DashboardPage = () => {
     const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
     const formatDate = (dateString) => {
         if (!dateString) return 'Chưa có dữ liệu';
-        // Xử lý trường hợp reportTime là dấu "Chưa có dữ liệu" từ state default
+      
         if (dateString.includes('Chưa có dữ liệu')) return dateString;
         
         return new Date(dateString).toLocaleString('vi-VN', {
