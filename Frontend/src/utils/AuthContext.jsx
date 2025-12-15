@@ -7,6 +7,8 @@ const AuthContext = createContext({
     logout: () => {}, 
     updateToken: () => {}, 
     loading: true,
+    isFavorite: () => false, 
+    toggleFavorite: () => {},
 });
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL; 
@@ -78,6 +80,18 @@ export const AuthProvider = ({ children }) => {
         setUser(null); 
     }, []);
 
+    const isFavorite = useCallback((TID) => {
+        if (!user) return false;
+        return false;
+    }, [user]);
+
+    const toggleFavorite = useCallback((TID) => {
+        if (!user) {
+            alert("Vui lòng đăng nhập để thực hiện chức năng Yêu thích.");
+            return;
+        }
+    }, [user]);
+
     useEffect(() => {
         setUser(getUserFromLocalStorage());
         setLoading(false);
@@ -89,7 +103,9 @@ export const AuthProvider = ({ children }) => {
         login, 
         loading,
         updateToken, 
-    }), [user, logout, login, loading, updateToken]);
+        isFavorite,
+        toggleFavorite,
+    }), [user, logout, login, loading, updateToken, isFavorite, toggleFavorite]);
 
     return (
         <AuthContext.Provider value={value}> 

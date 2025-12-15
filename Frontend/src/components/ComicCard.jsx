@@ -1,7 +1,7 @@
-import React, { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaHeart } from 'react-icons/fa';
-import { FavoriteContext } from "./FavoriteContext";
+import { useAuth } from '../utils/AuthContext'; 
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -11,14 +11,16 @@ const getPlaceholderUrl = (title) => {
 };
 
 function ComicCard({ comic, isDarkMode = false }) {
-    const { isFavorite, addFavorite, removeFavorite, loading: favoritesLoading } = useContext(FavoriteContext);
+    const { isFavorite, toggleFavorite, loading: authLoading } = useAuth();
+    
     const [isUpdating, setIsUpdating] = useState(false);
 
     if (!comic || !comic.TID) return null;
 
     const TID = comic.TID;
     const isCurrentlyFavorite = isFavorite(TID);
-    const isDisabled = favoritesLoading || isUpdating;
+    
+    const isDisabled = authLoading || isUpdating; 
 
     const handleFavoriteClick = async (e) => {
         e.preventDefault();
@@ -27,11 +29,10 @@ function ComicCard({ comic, isDarkMode = false }) {
         if (isDisabled) return;
         setIsUpdating(true);
         try {
-            if (isCurrentlyFavorite) await removeFavorite(TID);
-            else await addFavorite(TID);
+            await toggleFavorite(TID); 
+
         } catch (error) {
             console.error(error);
-            alert('Thao tác Yêu thích thất bại');
         } finally {
             setIsUpdating(false);
         }
@@ -40,6 +41,7 @@ function ComicCard({ comic, isDarkMode = false }) {
     const statusText = comic.TrangThai === 1 ? 'Còn tiếp' : 'Hoàn thành';
     const statusColor = comic.TrangThai === 1 ? 'bg-red-600' : 'bg-blue-600';
     const coverImageUrl = `${VITE_BACKEND_URL}/assets/covers/${comic.AnhBia || 'default.jpg'}`;
+    
     const cardBgClass = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100';
     const titleTextColor = isDarkMode ? 'text-white' : 'text-gray-800';
 
