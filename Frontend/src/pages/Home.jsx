@@ -1,19 +1,18 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, TrendingUp, Sparkles, AlertTriangle, List, Star } from 'lucide-react';
-import { get, post } from '../utils/request';
+import { ChevronRight, TrendingUp, AlertTriangle, List, Star } from 'lucide-react';
+import { get } from '../utils/request';
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 
 const StoryCard = ({ story }) => (
-    <Link to={`/story/${story.TID}`} className="block group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
+    
+    <Link to={`/truyen/${story.TID}`} className="block group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"> 
         <div className="relative overflow-hidden">
             <img
                 src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia || 'default.jpg'}`}
                 alt={story.TenTruyen}
-                // Chiều cao ảnh bìa được giảm bớt để card gọn hơn
                 className="w-full h-56 object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/400x560/500000/ffffff?text=NO+COVER"; }}
             />
@@ -26,8 +25,6 @@ const StoryCard = ({ story }) => (
             <h3 className="text-base font-bold text-gray-800 truncate group-hover:text-red-600 transition duration-200" title={story.TenTruyen}>
                 {story.TenTruyen}
             </h3>
-            {/* <p className="text-xs text-gray-500 mt-1">Tác giả: <span className="font-medium text-gray-700">{story.TacGia}</span></p>
-            <p className="text-xs text-gray-400 mt-1">Chương: {story.chapters} | {story.genre}</p> */}
         </div>
     </Link>
 );
@@ -45,7 +42,8 @@ const RankingSidebar = ({ rankingList }) => (
                         {index + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                        <Link to={`/story/${item.id}`} className="font-semibold text-gray-800 hover:text-red-600 transition duration-200 truncate block">
+                        {/* SỬA ĐƯỜNG DẪN TẠI ĐÂY: /story/ thành /truyen/ */}
+                        <Link to={`/truyen/${item.id}`} className="font-semibold text-gray-800 hover:text-red-600 transition duration-200 truncate block">
                             {item.title}
                         </Link>
                         <p className="text-xs text-gray-500">Lượt đọc: {item.views}</p>
@@ -71,7 +69,8 @@ const NewChapterList = ({ list }) => (
         <ul className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar"> {/* Thêm scrollbar */}
             {list.map((item, index) => (
                 <li key={index} className="border-b border-gray-100 pb-2 last:border-b-0">
-                    <Link to={`/story/${item.TID}`} className="flex justify-between items-start hover:bg-gray-50 p-2 rounded-lg transition duration-200">
+                    {/* SỬA ĐƯỜNG DẪN TẠI ĐÂY: /story/ thành /truyen/ */}
+                    <Link to={`/truyen/${item.TID}`} className="flex justify-between items-start hover:bg-gray-50 p-2 rounded-lg transition duration-200">
                         <div className="flex-1 min-w-0 pr-4">
                             <p className="font-semibold text-gray-800 hover:text-red-600 truncate text-base" title={item.TenTruyen}>
                                 {item.TenTruyen}
@@ -100,7 +99,7 @@ const NewChapterList = ({ list }) => (
 function Home() {
     const [hotStories, setHotStories] = useState([]);
     const [newChapters, setNewChapters] = useState([]);
-    const [ranking, setRanking] = useState([]);
+    const [ranking] = useState([]); // Đã bỏ setRanking để tránh lỗi lint
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -108,21 +107,16 @@ function Home() {
         setIsLoading(true);
         setError(null);
         try {
-            // setTimeout(() => {
-            //     setHotStories(mockHotStories);
-            //     setNewChapters(mockNewStories);
-            //     setRanking(mockRanking); // Thêm data Ranking
-            //     setIsLoading(false);
-            // }, 500);
             let truyenHotRequest = null;
             let truyenMoiRequest = null;
-            if (localStorage.getItem('role') == 'NguoiDung' && localStorage.getItem('token')) {
+            if (localStorage.getItem('role') === 'NguoiDung' && localStorage.getItem('token')) { // <--- Cải tiến so sánh
                 truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`, false, true);
                 truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoiCapNhat`, false, true);
             } else {
                 truyenHotRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenHot`);
                 truyenMoiRequest = await get(`${VITE_BACKEND_URL}/truyen/truyenMoiCapNhat`);
             }
+            
             let truyenHot = await truyenHotRequest.json();
             if (!truyenHotRequest.ok) {
                 throw new Error(truyenHot.error);
@@ -145,11 +139,8 @@ function Home() {
     }, []);
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-50 min-h-screen"> {/* Thêm bg-gray-50 cho nền nhạt */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-50 min-h-screen">
             <h1 className="sr-only">Trang Chủ ComicWeb - Nền tảng đọc truyện chuyên nghiệp</h1>
-
-            {/* Loading/Error States */}
-            {/* ... (Giữ nguyên) ... */}
 
             {isLoading ? (
                 <div className="flex justify-center items-center h-64">
@@ -163,7 +154,6 @@ function Home() {
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                    {/* KHU VỰC CHÍNH: TRUYỆN HOT & CẬP NHẬT MỚI (lg:col-span-2) */}
                     <div className="lg:col-span-3 space-y-8">
 
                         {/* Block: TRUYỆN HOT */}
@@ -172,9 +162,6 @@ function Home() {
                                 <h2 className="text-2xl font-extrabold text-gray-800 flex items-center">
                                     <TrendingUp className="text-red-600 mr-2" size={24} /> TRUYỆN HOT ĐỀ CỬ
                                 </h2>
-                                {/* <Link to="/hot" className="text-red-600 hover:text-red-700 font-semibold flex items-center text-sm">
-                                    Xem Tất Cả <ChevronRight size={18} />
-                                </Link> */}
                             </div>
 
                             {/* Danh sách Truyện Hot dạng Card */}
@@ -185,23 +172,10 @@ function Home() {
                             </div>
                         </div>
 
-                        {/* Block: TRUYỆN MỚI CẬP NHẬT (Thay vì là sidebar, ta đưa vào khu vực chính để tối đa hóa nội dung) */}
+                        {/* Block: TRUYỆN MỚI CẬP NHẬT */}
                         <NewChapterList list={newChapters} />
 
                     </div>
-
-                    {/* KHU VỰC SIDEBAR (lg:col-span-1) */}
-                    {/* <div className="lg:col-span-1 space-y-8"> */}
-
-                    {/* Bảng Xếp Hạng Mới */}
-                    {/* <RankingSidebar rankingList={ranking} /> */}
-
-                    {/* Thêm một phần phụ (Placeholder) */}
-                    {/* <div className="bg-gray-200 p-4 rounded-xl shadow-inner text-center border border-gray-300">
-                            <h3 className="font-bold text-gray-800 mb-2">Banner Quảng Cáo Lớn</h3>
-                            <p className="text-sm text-gray-600 h-32 flex items-center justify-center">300x600</p>
-                        </div>
-                    </div> */}
                 </div>
             )}
         </div>

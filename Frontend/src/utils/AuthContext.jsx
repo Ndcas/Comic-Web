@@ -55,9 +55,10 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [favoriteTIDs, setFavoriteTIDs] = useState(new Set());
 
-    const authAxios = useAuthAxios();
+   
+    const authAxios = useAuthAxios(); 
 
-    // --- LOGIC AUTH CƠ BẢN ---
+ 
     const login = useCallback(() => {
         setUser(getUserFromLocalStorage());
     }, []);
@@ -125,6 +126,7 @@ export const AuthProvider = ({ children }) => {
         return favoriteTIDs.has(parseInt(TID));
     }, [favoriteTIDs]);
 
+    // 🌟 SỬA ĐỔI: Chỉ cho phép Thêm (themVaoDanhSachYeuThich), không cho phép Xóa
     const toggleFavorite = useCallback(async (TID) => {
         const tidNumber = parseInt(TID);
 
@@ -134,41 +136,38 @@ export const AuthProvider = ({ children }) => {
         }
 
         const isCurrentlyFavorite = isFavorite(tidNumber);
+        
+        // Nếu đã yêu thích, không làm gì cả (Chỉ cho phép thêm, không cho phép xóa)
+        if (isCurrentlyFavorite) {
+            alert("Truyện này đã có trong danh sách yêu thích của bạn.");
+            return true;
+        }
 
-        const actionUrl = isCurrentlyFavorite
-            ? `${USER_API_PREFIX}/xoaKhoiDanhSachYeuThich`
-            : `${USER_API_PREFIX}/themVaoDanhSachYeuThich`;
+        // Action URL chỉ là thêm
+        const actionUrl = `${USER_API_PREFIX}/themVaoDanhSachYeuThich`;
 
         try {
             const response = await authAxios.post(actionUrl, { TID: tidNumber });
 
             if (response.status === 200 || response.status === 201) {
 
-                // Cập nhật state Frontend ngay lập tức
+                // Cập nhật state Frontend: chỉ thêm
                 setFavoriteTIDs(prev => {
                     const newSet = new Set(prev);
-                    if (isCurrentlyFavorite) {
-                        newSet.delete(tidNumber);
-                    } else {
-                        newSet.add(tidNumber);
-                    }
+                    newSet.add(tidNumber);
                     return newSet;
                 });
-                // Sau khi thành công, nên gọi lại fetchFavorites nếu cần đồng bộ hóa toàn bộ
-                // fetchFavorites();
                 return true;
             } else {
                 throw new Error(response.data.error || "Lỗi Server khi cập nhật yêu thích.");
             }
 
         } catch (error) {
-            console.error("Lỗi khi toggleFavorite:", error);
+            console.error("Lỗi khi thêm yêu thích:", error);
 
-            // CẢI THIỆN XỬ LÝ LỖI 400
-            let errorMessage = `Thao tác ${isCurrentlyFavorite ? 'bỏ' : 'thêm'} yêu thích thất bại.`;
+            let errorMessage = `Thao tác thêm yêu thích thất bại.`;
 
             if (error.response && error.response.status === 400) {
-                // Lấy thông báo lỗi chi tiết từ Backend
                 const backendError = error.response.data.error || error.response.data.message || 'Dữ liệu yêu cầu không hợp lệ.';
                 errorMessage = `${errorMessage} Chi tiết: ${backendError}`;
             } else {
@@ -240,7 +239,8 @@ const axiosRefreshRequest = async () => {
 }
 
 export const useAuthAxios = () => {
-    const { user, logout, updateToken } = useAuth();
+    // Lưu ý: useAuth() được sử dụng ở đây
+    const { user, logout, updateToken } = useAuth(); 
 
     const authAxiosRef = useRef(null);
 
