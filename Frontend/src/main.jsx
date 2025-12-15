@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'; 
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import './index.css';
 
 
-import { AuthProvider } from './utils/AuthContext'; 
-import Profile from './pages/Profile'; 
+import { AuthProvider } from './utils/AuthContext';
+import Profile from './pages/Profile';
 import FavoriteList from './pages/FavoriteList';
 import HistoryList from './pages/HistoryList';
 import Layout from './components/Layout';
@@ -22,11 +22,11 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ChangePassword from './pages/ChangePassword';
 import ForgotPassword from './pages/ForgotPassword';
-import PaymentResultPage from './pages/PaymentResultPage'; 
+import PaymentResultPage from './pages/PaymentResultPage';
 
 
-import AdminDashboard from './pages/AdminDashboard'; 
-import AdminProtectedRoute from './components/AdminProtectedRoute'; 
+import AdminDashboard from './pages/AdminDashboard';
+import AdminProtectedRoute from './components/AdminProtectedRoute';
 import AdminLoginPage from './pages/AdminLoginPage';
 
 
@@ -44,8 +44,9 @@ const router = createBrowserRouter([
             { path: '/genre/:TLID', element: <StoryList /> },
             { path: '/search/:keyword?', element: <StoryList /> },
             { path: '/category/:TLID', element: <CategoryComics /> },
-            { path: '/story/:TID', element: <StoryDetail /> },
-            
+
+            { path: '/truyen/:TID', element: <StoryDetail /> },
+
             { path: '/change-password', element: <ChangePassword /> },
             { path: '/forgot-password', element: <ForgotPassword /> },
             { path: '/upload', element: <UploadComic /> },
@@ -60,19 +61,19 @@ const router = createBrowserRouter([
     { path: '/read/:TID/:CTID', element: <ChapterReader />, errorElement: <NotFound /> },
     { path: '/xuLyKetQuaNapDiem/:NDID', element: <PaymentResultPage />, errorElement: <NotFound /> },
 
-    
-    { 
-        path: '/admin/login', 
-        element: <AdminLoginPage />, 
-        errorElement: <NotFound /> 
+
+    {
+        path: '/admin/login',
+        element: <AdminLoginPage />,
+        errorElement: <NotFound />
     },
 
     {
-        path: '/admin', 
+        path: '/admin',
         errorElement: <NotFound />,
-        element: <AdminProtectedRoute element={<AdminDashboard />} />, 
+        element: <AdminProtectedRoute element={<AdminDashboard />} />,
         children: [
-            { path: '*', element: <div /> }, 
+            { path: '*', element: <div /> },
         ],
     },
 
@@ -81,7 +82,7 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        <AuthProvider> 
+        <AuthProvider>
             <RouterProvider router={router} />
         </AuthProvider>
     </React.StrictMode>,

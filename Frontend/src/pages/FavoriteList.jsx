@@ -15,7 +15,18 @@ export default function FavoriteList() {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
 
-    // -------- Fetch danh sách yêu thích --------
+    const handleUnauthorized = useCallback(() => {
+        toast.error("Phiên đăng nhập hết hạn hoặc token không hợp lệ, vui lòng đăng nhập lại.");
+
+        localStorage.removeItem('token');
+        localStorage.removeItem('role');
+        localStorage.removeItem('email');
+        localStorage.removeItem('exp');
+        localStorage.removeItem('tenTaiKhoan');
+
+        navigate('/login');
+    }, [navigate]);
+
     const fetchFavorites = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -31,23 +42,25 @@ export default function FavoriteList() {
             setFavoriteStories(data.truyens || []);
         } catch (err) {
             console.error("Lỗi khi tải danh sách yêu thích:", err);
-            if (err.message.includes("401")) {
-                toast.error("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại.");
-                localStorage.removeItem('token');
-                navigate('/login');
+
+            if (err.status === 401) {
+                handleUnauthorized();
             } else {
                 setError(err.message || "Lỗi khi tải danh sách yêu thích.");
             }
         } finally {
             setLoading(false);
         }
-    }, [token, navigate]);
+    }, [token, handleUnauthorized]);
 
     useEffect(() => {
         fetchFavorites();
     }, [fetchFavorites]);
 
-    // -------- Xóa 1 truyện --------
+    const handleStoryClick = useCallback((TID) => {
+        navigate(`/truyen/${TID}`);
+    }, [navigate]);
+
     const handleRemoveFavorite = async (TID) => {
         if (!token) {
             toast.warning("Bạn cần đăng nhập để xóa truyện yêu thích.");
@@ -64,7 +77,12 @@ export default function FavoriteList() {
             toast.success("Đã xóa truyện khỏi danh sách yêu thích.");
         } catch (err) {
             console.error(err);
-            toast.error(`Lỗi khi xóa truyện: ${err.message}`);
+
+            if (err.status === 401) {
+                 handleUnauthorized();
+            } else {
+                toast.error(`Lỗi khi xóa truyện: ${err.message}`);
+            }
         } finally {
             setDeletingId(null);
         }
@@ -94,23 +112,34 @@ export default function FavoriteList() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {favoriteStories.map(story => (
                         <div key={story.TID} className="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-                            {story.AnhBia && (
-                                <img
-                                    src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia}`}
-                                    alt={story.TenTruyen}
-                                    className="h-48 w-full object-cover"
-                                    onError={(e) => { e.target.src = 'https://placehold.co/200x300?text=No+Img'; }}
-                                />
-                            )}
-                            <div className="p-4 flex-1 flex flex-col justify-between">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-blue-600 truncate">{story.TenTruyen}</h2>
-                                    <p className="text-sm text-gray-500">Tác giả: {story.TacGia}</p>
+
+                            <div
+                                onClick={() => handleStoryClick(story.TID)}
+                                className="cursor-pointer"
+                            >
+                                {story.AnhBia && (
+                                    <img
+                                        src={`${VITE_BACKEND_URL}/assets/covers/${story.AnhBia}`}
+                                        alt={story.TenTruyen}
+                                        className="h-48 w-full object-cover"
+                                        onError={(e) => { e.target.src = 'https://placehold.co/200x300?text=No+Img'; }}
+                                    />
+                                )}
+                                <div className="p-4 flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <h2 className="text-lg font-semibold text-blue-600 truncate hover:underline">
+                                            {story.TenTruyen}
+                                        </h2>
+                                        <p className="text-sm text-gray-500">Tác giả: {story.TacGia}</p>
+                                    </div>
                                 </div>
+                            </div>
+
+                            <div className="p-4 pt-0">
                                 <button
                                     onClick={() => handleRemoveFavorite(story.TID)}
                                     disabled={deletingId === story.TID}
-                                    className={`mt-3 px-3 py-2 text-white rounded-md transition duration-150
+                                    className={`mt-3 w-full px-3 py-2 text-white rounded-md transition duration-150
                                         ${deletingId === story.TID ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}`}
                                 >
                                     {deletingId === story.TID ? 'Đang Xóa...' : 'Xóa'}

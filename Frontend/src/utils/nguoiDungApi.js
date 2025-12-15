@@ -1,18 +1,18 @@
-const BASE_URL = 'http://localhost:8080'; 
+const BASE_URL = 'http://localhost:8080';
 
 const apiCall = async (endpoint, method = 'GET', token = null, body = null) => {
-    
-    const url = `${BASE_URL}${endpoint}`; 
+
+    const url = `${BASE_URL}${endpoint}`;
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const config = { method, headers };
-    
+
     if (body && method !== 'GET') config.body = JSON.stringify(body);
 
     const response = await fetch(url, config);
     if (!response.ok) {
-        const errorText = await response.text(); 
+        const errorText = await response.text();
         try {
              const errorJson = JSON.parse(errorText);
              const error = new Error(errorJson.error || `Lỗi từ server (${response.status}): ${errorText}`);
@@ -29,7 +29,7 @@ const apiCall = async (endpoint, method = 'GET', token = null, body = null) => {
     if (contentType && contentType.includes("application/json")) {
         return response.json();
     }
-    return {}; 
+    return {};
 };
 
 export const layLichSuDoc = async (token) =>
@@ -45,16 +45,16 @@ export const ghiNhanLichSuDoc = async (token, tid, ctid) =>
     apiCall('/nguoiDung/ghiNhanLichSuDoc', 'POST', token, { tid, ctid });
 
 export const layDanhSachYeuThich = async (token) =>
-    apiCall('/truyen/danhSachYeuThich', 'GET', token); 
+    apiCall('/nguoiDung/danhSachYeuThich', 'GET', token);
 
 export const themVaoDanhSachYeuThich = async (token, TID) =>
-    apiCall('/truyen/themVaoDanhSachYeuThich', 'POST', token, { TID }); 
+    apiCall('/nguoiDung/themVaoDanhSachYeuThich', 'POST', token, { TID });
 
 export const xoaKhoiDanhSachYeuThich = async (token, TID) =>
-    apiCall('/truyen/xoaKhoiDanhSachYeuThich', 'POST', token, { TID }); 
+    apiCall('/nguoiDung/xoaKhoiDanhSachYeuThich', 'POST', token, { TID });
 
 export const napDiem = async (token, diem) => {
-    
+
     const endpoint = `/nguoiDung/napDiem?diem=${diem}`;
     return apiCall(endpoint, 'GET', token);
 }

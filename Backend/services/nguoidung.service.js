@@ -615,6 +615,7 @@ async function themVaoDanhSachYeuThich(ndid, tid) {
                 error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
             };
         }
+
         let truyen = await Truyen.findOne({
             attributes: ['TID'],
             where: {
@@ -634,10 +635,14 @@ async function themVaoDanhSachYeuThich(ndid, tid) {
                 error: 'Không tìm thấy truyện được yêu cầu'
             }
         }
+
         let yeuThich = await YeuThich.findOne({
-            NDID: nguoiDung.NDID,
-            TID: truyen.TID
+            where: {
+                NDID: nguoiDung.NDID,
+                TID: truyen.TID
+            }
         });
+
         if (yeuThich) {
             return {
                 ok: false,
@@ -645,6 +650,7 @@ async function themVaoDanhSachYeuThich(ndid, tid) {
                 error: 'Truyện đã có trong danh sách yêu thích'
             };
         }
+
         await database.transaction(async (transaction) => {
             await YeuThich.create({
                 NDID: nguoiDung.NDID,
@@ -655,6 +661,7 @@ async function themVaoDanhSachYeuThich(ndid, tid) {
                 transaction: transaction
             });
         });
+
         return {
             ok: true
         };
@@ -663,6 +670,8 @@ async function themVaoDanhSachYeuThich(ndid, tid) {
         throw new Error('Lỗi hệ thống');
     }
 }
+
+
 
 async function xoaKhoiDanhSachYeuThich(ndid, tid) {
     try {
