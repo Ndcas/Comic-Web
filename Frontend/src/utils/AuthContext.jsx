@@ -1,5 +1,3 @@
-// src/utils/AuthContext.jsx
-
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import axios from 'axios'; 
 
@@ -7,12 +5,19 @@ const AuthContext = createContext({
     user: null, 
     login: () => {}, 
     logout: () => {}, 
-    updateToken: (newToken, newExpiry, newRole, newEmail, newTenTaiKhoan) => {}, 
+    updateToken: () => {}, 
     loading: true,
 });
 
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL; 
 const BASE_URL = VITE_BACKEND_URL; 
+
+const isTokenExpired = (exp) => {
+    if (!exp) return true;
+    const expiryTime = parseInt(exp) * 1000;
+    const now = Date.now();
+    return (expiryTime - now) < (5 * 60 * 1000); 
+};
 
 const getUserFromLocalStorage = () => {
     const token = localStorage.getItem("token"); 
@@ -21,7 +26,7 @@ const getUserFromLocalStorage = () => {
     const exp = localStorage.getItem("exp"); 
     const tenTaiKhoan = localStorage.getItem("tenTaiKhoan"); 
 
-    if (token && role && email && exp) {
+    if (token && role && email && exp && !isTokenExpired(exp)) { 
         return { 
             token, 
             role, 
@@ -29,6 +34,11 @@ const getUserFromLocalStorage = () => {
             exp: exp,
             TenTaiKhoan: tenTaiKhoan || email 
         }; 
+    }
+    
+    if (token && isTokenExpired(exp)) {
+        console.log("Token đã hết hạn. Đang xóa token cũ.");
+        localStorage.clear();
     }
     
     return null;
@@ -47,8 +57,11 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('exp', newExpiry);
         localStorage.setItem('role', newRole);
         localStorage.setItem('email', newEmail);
+        
         if (newTenTaiKhoan) {
             localStorage.setItem('tenTaiKhoan', newTenTaiKhoan);
+        } else {
+            localStorage.removeItem('tenTaiKhoan');
         }
 
         setUser({
@@ -85,24 +98,103 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthContext); 
+
+let isRefreshing = false; 
+let failedRequestsQueue = [];
+
+const axiosRefreshRequest = async () => {
+    try {
+        const refreshToken = localStorage.getItem('token'); 
+
+        const response = await axios.post(`${BASE_URL}/admin/refresh_token`, {}, {
+            headers: {
+                'Authorization': `Bearer ${refreshToken}`
+            }
+        });
+        
+        return response.data; 
+
+    } catch (err) {
+        console.error("Lỗi khi làm mới token:", err);
+        throw err;
+    }
+}
 
 export const useAuthAxios = () => {
-    const { user } = useAuth(); 
+    const { user, logout, updateToken } = useAuth(); 
+    
+    const authAxiosRef = React.useRef(null);
 
-    const authAxios = useMemo(() => {
-        const instance = axios.create({
+    if (!authAxiosRef.current) {
+        authAxiosRef.current = axios.create({
             baseURL: BASE_URL, 
             headers: {
-                Authorization: user ? `Bearer ${user.token}` : ''
+                'Content-Type': 'application/json'
             }
         });
 
-        // Interceptor logic cho Refresh Token có thể được thêm ở đây
+        authAxiosRef.current.interceptors.request.use(
+            (config) => {
+                const token = localStorage.getItem('token');
+                if (token && !config.url.endsWith('/admin/refresh_token')) {
+                    config.headers['Authorization'] = `Bearer ${token}`;
+                }
+                return config;
+            },
+            (error) => Promise.reject(error)
+        );
 
-        return instance;
-        
-    }, [user?.token]);
+        authAxiosRef.current.interceptors.response.use(
+            (response) => response,
+            async (error) => {
+                const originalRequest = error.config;
+                if (error.response?.status === 401 && !originalRequest._retry) {
+                    originalRequest._retry = true; 
 
-    return authAxios;
+                    if (!isRefreshing) {
+                        isRefreshing = true;
+                        
+                        try {
+                            const refreshData = await axiosRefreshRequest();
+                            
+                            updateToken(
+                                refreshData.token, 
+                                refreshData.exp, 
+                                user.role, 
+                                user.email, 
+                                user.TenTaiKhoan
+                            );
+
+                            failedRequestsQueue.forEach(promise => promise.resolve(refreshData.token));
+                            failedRequestsQueue = []; 
+
+                            originalRequest.headers['Authorization'] = `Bearer ${refreshData.token}`;
+                            return authAxiosRef.current(originalRequest);
+                            
+                        } catch (refreshError) {
+                            logout(); 
+                            return Promise.reject(refreshError);
+                        } finally {
+                            isRefreshing = false;
+                        }
+                    }
+
+                    return new Promise((resolve, reject) => {
+                        failedRequestsQueue.push({
+                            resolve: (token) => {
+                                originalRequest.headers['Authorization'] = `Bearer ${token}`;
+                                resolve(authAxiosRef.current(originalRequest));
+                            },
+                            reject: (err) => reject(err)
+                        });
+                    });
+                }
+
+                return Promise.reject(error);
+            }
+        );
+    }
+    
+    return authAxiosRef.current;
 };

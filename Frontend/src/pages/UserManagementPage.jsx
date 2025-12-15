@@ -1,18 +1,12 @@
-// src/pages/UserManagementPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAuthAxios, useAuth } from '../utils/AuthContext'; 
 
-// 🚨 ĐÃ SỬA LỖI IMPORT: Thay thế import 'authAxios' bằng import 'useAuthAxios'
-// (Giả định hook này đã được export trong AuthContext.jsx)
-import { useAuthAxios } from '../utils/AuthContext'; 
-
-// Chỉ cần API path vì Base URL sẽ được cung cấp bởi useAuthAxios
-const API_BASE_PATH = '/admin/users'; 
+const API_BASE_PATH_NGUOIDUNG = '/nguoidung'; 
 
 const UserManagementPage = () => {
-    // 🚨 GỌI HOOK: Lấy instance Axios đã được cấu hình và đính kèm token
     const authAxios = useAuthAxios(); 
+    const { user: adminUser } = useAuth(); 
 
-    // State quản lý danh sách người dùng và phân trang
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -21,105 +15,160 @@ const UserManagementPage = () => {
     const [totalItems, setTotalItems] = useState(0);
     const [pageSize] = useState(10); 
     
-    // State bộ lọc và tìm kiếm
-    const [filterStatus, setFilterStatus] = useState('ACTIVE'); // TRẠNG THÁI: ACTIVE, BANNED
+    // 1: Hoạt động, 0: Đã Khóa, 'ALL': Tất cả
+    const [filterStatus, setFilterStatus] = useState(1); 
     const [searchKeyword, setSearchKeyword] = useState('');
     const [message, setMessage] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    // --- Hàm Fetch Dữ liệu Người dùng ---
+    // Hàm gọi API và thực hiện Lọc/Phân trang tại Frontend
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
         
         try {
-            // Sử dụng authAxios đã lấy từ hook
-            const response = await authAxios.get(API_BASE_PATH, {
-                params: {
-                    page: currentPage,
-                    pageSize: pageSize,
-                    status: filterStatus,
-                    keyword: searchKeyword,
-                }
-            });
+            // Lấy toàn bộ danh sách người dùng từ Backend (Backend không phân trang/lọc)
+            const response = await authAxios.get(`${API_BASE_PATH_NGUOIDUNG}/tatCaNguoiDung`);
+            
+            let allUsers = response.data.nguoiDungs || [];
 
-            setUsers(response.data.users || []);
-            setTotalPages(response.data.totalPages || 1);
-            setTotalItems(response.data.totalItems || 0);
+            // 1. Lọc theo Trạng thái & Từ khóa (Frontend Filter)
+            let filteredUsers = allUsers.filter(user => {
+                // Lọc theo trạng thái
+                const matchesStatus = filterStatus === 'ALL' || user.TrangThai === filterStatus;
+                
+                // Lọc theo từ khóa (Tên tài khoản hoặc Email)
+                const keyword = searchKeyword.toLowerCase();
+                const matchesKeyword = !keyword || 
+                                       user.TenTaiKhoan?.toLowerCase().includes(keyword) || 
+                                       user.Email?.toLowerCase().includes(keyword);
+                                       
+                return matchesStatus && matchesKeyword;
+            });
+            
+            // 2. Phân trang (Frontend Pagination)
+            const count = filteredUsers.length;
+            const totalPagesCalculated = Math.ceil(count / pageSize);
+            const offset = (currentPage - 1) * pageSize;
+            const usersForPage = filteredUsers.slice(offset, offset + pageSize);
+            
+            setUsers(usersForPage);
+            setTotalPages(totalPagesCalculated || 1);
+            setTotalItems(count || 0);
             
         } catch (err) {
             setError(err.response?.data?.error || 'Không thể tải danh sách người dùng.');
         } finally {
             setLoading(false);
         }
-    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword]); // 🚨 QUAN TRỌNG: Thêm authAxios vào dependency array
+    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword, refreshTrigger]); 
 
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
 
-    // --- Hàm Khóa Tài khoản (Ban) ---
-    const handleBanUser = async (UID, TenTaiKhoan) => {
-        const reason = prompt(`Nhập lý do KHÓA tài khoản ${TenTaiKhoan} (ID: ${UID}):`);
-        if (!reason) return;
+    const updateTrangThai = async (user, trangThai) => {
+        // Guard Rail: Ngăn Admin tự khóa mình hoặc khóa Admin khác
+        if (trangThai === 0 && (adminUser?.NDID === user.NDID || isUserAdmin(user))) {
+            alert('🚫 Lỗi bảo mật: Không thể khóa tài khoản Admin hoặc chính tài khoản của bạn.');
+            return false;
+        }
+
+        if (trangThai === 0) {
+            const reason = prompt(`Nhập lý do KHÓA tài khoản ${user.TenTaiKhoan} (ID: ${user.NDID}):`);
+            if (!reason) return false;
+        } else if (trangThai === 1) {
+            if (!window.confirm(`Bạn có chắc chắn muốn MỞ KHÓA tài khoản ${user.TenTaiKhoan} không?`)) return false;
+        }
+        
+        const actionText = trangThai === 0 ? 'Khóa' : 'Mở khóa';
 
         try {
-            setMessage(`Đang khóa tài khoản ${TenTaiKhoan}...`);
-            await authAxios.post(`${API_BASE_PATH}/khoa/${UID}`, { LyDo: reason });
-            setMessage(`Tài khoản ${TenTaiKhoan} đã bị KHÓA.`);
-            fetchUsers();
+            setMessage(`Đang ${actionText} tài khoản ${user.TenTaiKhoan}...`);
+            
+            await authAxios.post(`${API_BASE_PATH_NGUOIDUNG}/capNhatNguoiDung`, { 
+                ndid: user.NDID,
+                trangThai: trangThai, 
+                // Truyền giá trị điểm hiện tại, bắt buộc do yêu cầu của API Backend cũ
+                diem: user.Diem || 0 
+            });
+            
+            setMessage(`Tài khoản ${user.TenTaiKhoan} đã được ${actionText.toUpperCase()}.`);
+            setRefreshTrigger(prev => prev + 1);
+            return true;
         } catch (err) {
-            setError(err.response?.data?.error || 'Lỗi khi khóa tài khoản.');
+            setError(err.response?.data?.error || `Lỗi khi ${actionText.toLowerCase()} tài khoản.`);
+            return false;
         } finally {
-            setMessage(null);
+            setTimeout(() => setMessage(null), 3000);
         }
     };
 
-    // --- Hàm Mở khóa Tài khoản (Unban) ---
-    const handleUnbanUser = async (UID, TenTaiKhoan) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn MỞ KHÓA tài khoản ${TenTaiKhoan} không?`)) return;
-
-        try {
-            setMessage(`Đang mở khóa tài khoản ${TenTaiKhoan}...`);
-            await authAxios.post(`${API_BASE_PATH}/moKhoa/${UID}`);
-            setMessage(`Tài khoản ${TenTaiKhoan} đã được MỞ KHÓA.`);
-            fetchUsers();
-        } catch (err) {
-            setError(err.response?.data?.error || 'Lỗi khi mở khóa tài khoản.');
-        } finally {
-            setMessage(null);
-        }
-    };
+    const handleBanUser = (user) => updateTrangThai(user, 0);
+    const handleUnbanUser = (user) => updateTrangThai(user, 1);
     
-    // --- Xử lý sự kiện phân trang ---
     const handlePageChange = (page) => {
         if (page > 0 && page <= totalPages) {
             setCurrentPage(page);
         }
     };
 
-    // --- Xử lý tìm kiếm ---
     const handleSearch = (e) => {
         e.preventDefault();
-        setCurrentPage(1); 
-        fetchUsers();
+        setCurrentPage(1); // Luôn về trang 1 khi tìm kiếm
+        setRefreshTrigger(prev => prev + 1);
     };
 
-    // --- Render Component ---
+    const handleFilterChange = (statusValue) => {
+        // Chuyển đổi giá trị string ('ACTIVE', 'BANNED', 'ALL') sang giá trị số (1, 0, 'ALL')
+        let status;
+        switch (statusValue) {
+            case 'ACTIVE':
+                status = 1;
+                break;
+            case 'BANNED':
+                status = 0;
+                break;
+            default:
+                status = 'ALL';
+        }
+        setFilterStatus(status);
+        setCurrentPage(1);
+    };
+    
+    // Các hàm định dạng và kiểm tra
+    const isCurrentUser = (user) => adminUser && user.NDID === adminUser.NDID;
+    const isUserAdmin = (user) => user.isUser === false; 
+
+    const formatTrangThai = (trangThai) => {
+        if (trangThai === 0) return 'Đã Khóa';
+        if (trangThai === 1) return 'Hoạt động';
+        return 'Không xác định';
+    }
+
+    const formatRole = (isUser) => {
+        return isUser === false ? 'Admin' : 'User';
+    }
+
+    const getStatusStyleKey = (trangThai) => {
+        return trangThai === 0 ? 'BANNED' : 'ACTIVE';
+    }
+
     return (
         <div style={styles.container}>
             <h2>Quản Lý Danh Sách Người Dùng</h2>
             
-            {/* Bộ lọc và Tìm kiếm */}
             <div style={styles.controls}>
                 <div style={styles.filterGroup}>
                     <label>Trạng thái:</label>
                     <select 
-                        value={filterStatus} 
-                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                        value={filterStatus === 1 ? 'ACTIVE' : filterStatus === 0 ? 'BANNED' : 'ALL'} 
+                        onChange={(e) => handleFilterChange(e.target.value)}
                         style={styles.select}
                     >
-                        <option value="ACTIVE">Hoạt động</option>
-                        <option value="BANNED">Đã Khóa</option>
+                        <option value="ALL">Tất cả</option>
+                        <option value="ACTIVE">Hoạt động (1)</option>
+                        <option value="BANNED">Đã Khóa (0)</option>
                     </select>
                 </div>
 
@@ -146,41 +195,48 @@ const UserManagementPage = () => {
                     <table style={styles.table}>
                         <thead>
                             <tr>
-                                <th>UID</th>
+                                <th>NDID</th>
                                 <th>Tên tài khoản</th>
                                 <th>Email</th>
                                 <th>Vai trò</th>
                                 <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
+                                <th>Ngày tham gia</th>
                                 <th>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             {users.length > 0 ? (
                                 users.map((user) => (
-                                    <tr key={user.UID}>
-                                        <td>{user.UID}</td>
+                                    <tr key={user.NDID}>
+                                        <td>{user.NDID}</td>
                                         <td>{user.TenTaiKhoan}</td>
                                         <td>{user.Email}</td>
-                                        <td>{user.Role}</td>
                                         <td>
-                                            <span style={styles.statusBadge[user.TrangThai || 'ACTIVE']}>
-                                                {user.TrangThai === 'BANNED' ? 'Đã Khóa' : 'Hoạt động'}
+                                            <span style={styles.roleBadge[formatRole(user.isUser)]}>
+                                                {formatRole(user.isUser)}
                                             </span>
                                         </td>
-                                        <td>{new Date(user.NgayTao).toLocaleDateString('vi-VN')}</td>
                                         <td>
-                                            {user.TrangThai !== 'BANNED' ? (
+                                            <span style={styles.statusBadge[getStatusStyleKey(user.TrangThai)]}>
+                                                {formatTrangThai(user.TrangThai)}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(user.NgayThamGia).toLocaleDateString('vi-VN')}</td>
+                                        <td>
+                                            {isCurrentUser(user) ? (
+                                                <span style={{color: '#6c757d', fontWeight: 'bold'}}>🚫 Bạn</span>
+                                            ) : isUserAdmin(user) ? (
+                                                <span style={{color: '#ffc107', fontWeight: 'bold'}}>👑 Admin</span>
+                                            ) : user.TrangThai !== 0 ? (
                                                 <button 
-                                                    onClick={() => handleBanUser(user.UID, user.TenTaiKhoan)}
+                                                    onClick={() => handleBanUser(user)}
                                                     style={styles.actionButton.ban}
-                                                    disabled={user.Role === 'Admin'} 
                                                 >
                                                     Khóa
                                                 </button>
                                             ) : (
                                                 <button 
-                                                    onClick={() => handleUnbanUser(user.UID, user.TenTaiKhoan)}
+                                                    onClick={() => handleUnbanUser(user)}
                                                     style={styles.actionButton.unban}
                                                 >
                                                     Mở khóa
@@ -190,12 +246,11 @@ const UserManagementPage = () => {
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="7" style={{textAlign: 'center'}}>Không tìm thấy người dùng nào.</td></tr>
+                                <tr><td colSpan="7" style={{textAlign: 'center', padding: '20px'}}>Không tìm thấy người dùng nào.</td></tr>
                             )}
                         </tbody>
                     </table>
                     
-                    {/* Phân trang */}
                     <div style={styles.pagination}>
                         <button 
                             onClick={() => handlePageChange(currentPage - 1)} 
@@ -219,7 +274,6 @@ const UserManagementPage = () => {
     );
 };
 
-// --- Styles cho component ---
 const styles = {
     container: { padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
     controls: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' },
@@ -232,17 +286,26 @@ const styles = {
     message: { color: 'green', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
     loading: { textAlign: 'center', padding: '30px' },
     summary: { marginBottom: '15px', fontWeight: 'bold' },
-    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px', textAlign: 'left' },
+    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px', textAlign: 'left', 
+             '& th, & td': { padding: '12px 15px', borderBottom: '1px solid #ddd' },
+             '& th': { backgroundColor: '#f3f4f6', fontWeight: '600' }
+            },
+    
+    roleBadge: {
+        Admin: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.9em', fontWeight: '600' },
+        User: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#17a2b8', color: 'white', fontSize: '0.9em', fontWeight: '600' },
+    },
+    
     statusBadge: {
         ACTIVE: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.9em' },
         BANNED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.9em' },
     },
     actionButton: {
-        ban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
-        unban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
+        ban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', transition: 'background-color 0.2s' },
+        unban: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', transition: 'background-color 0.2s' },
     },
     pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px', gap: '15px' },
-    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' },
+    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', transition: 'background-color 0.2s' },
     pageInfo: { fontWeight: 'bold' },
 };
 

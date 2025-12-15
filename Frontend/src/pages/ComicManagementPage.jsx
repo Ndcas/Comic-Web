@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthAxios } from '../utils/AuthContext'; 
 
-const API_BASE_PATH = '/admin/comics'; 
+const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+const API_UNVERIFIED_COMICS_PATH = '/admin/truyenChuaDuyet'; 
+const API_VERIFY_REJECT_COMIC_PATH = '/admin/duyetTruyen'; 
 
 const ComicManagementPage = () => {
     const authAxios = useAuthAxios(); 
@@ -17,35 +20,51 @@ const ComicManagementPage = () => {
     const [filterStatus, setFilterStatus] = useState('UNVERIFIED');
     const [searchKeyword, setSearchKeyword] = useState('');
     const [message, setMessage] = useState(null);
+    
+    const [refreshTrigger, setRefreshTrigger] = useState(0); 
 
     const fetchComics = useCallback(async () => {
         setLoading(true);
         setError(null);
         
-        try {
-            const response = await authAxios.get(API_BASE_PATH, {
-                params: {
-                    page: currentPage,
-                    pageSize: pageSize,
-                    status: filterStatus,
-                    keyword: searchKeyword,
-                }
-            });
+        let apiPath = '';
 
-            setComics(response.data.comics || []);
-            setTotalPages(response.data.totalPages || 1);
-            setTotalItems(response.data.totalItems || 0);
+        if (filterStatus === 'UNVERIFIED') {
+            apiPath = API_UNVERIFIED_COMICS_PATH; 
+        } else {
+            setError(`Chức năng lọc theo trạng thái "${filterStatus}" chưa được hỗ trợ bởi Backend.`);
+            setLoading(false);
+            setComics([]);
+            return; 
+        }
+
+        try {
+            const response = await authAxios.get(apiPath);
+            
+            const fetchedComics = response.data.truyens || []; 
+
+            setComics(fetchedComics); 
+            setTotalItems(fetchedComics.length || 0);
+            setTotalPages(1); 
             
         } catch (err) {
-            setError(err.response?.data?.error || 'Không thể tải danh sách truyện.');
+            const errorMessage = err.response?.data?.error 
+                || (err.response?.status === 404 ? `Lỗi 404: Không tìm thấy đường dẫn ${apiPath}. Kiểm tra lại cấu hình Router Backend.` : `Lỗi tải truyện từ ${apiPath}. Backend trả về 401 hoặc lỗi Server.`);
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
-    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword]); 
+    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword, refreshTrigger]);
 
     useEffect(() => {
         fetchComics();
     }, [fetchComics]);
+
+    useEffect(() => {
+        if (currentPage > totalPages && currentPage > 1 && !loading) {
+            setCurrentPage(totalPages);
+        }
+    }, [totalPages, currentPage, loading]);
 
     
     const handleVerifyComic = async (TID) => {
@@ -53,13 +72,16 @@ const ComicManagementPage = () => {
 
         try {
             setMessage(`Đang duyệt truyện ID: ${TID}...`);
-            await authAxios.post(`${API_BASE_PATH}/duyet/${TID}`);
+            await authAxios.post(API_VERIFY_REJECT_COMIC_PATH, { 
+                TID: TID, 
+                DaDuyet: 1
+            }); 
             setMessage(`Truyện ID: ${TID} đã được duyệt thành công!`);
-            fetchComics();
+            setRefreshTrigger(prev => prev + 1); 
         } catch (err) {
             setError(err.response?.data?.error || 'Lỗi khi duyệt truyện.');
         } finally {
-            setMessage(null);
+            setTimeout(() => setMessage(null), 3000);
         }
     };
 
@@ -70,13 +92,17 @@ const ComicManagementPage = () => {
 
         try {
             setMessage(`Đang từ chối truyện ID: ${TID}...`);
-            await authAxios.post(`${API_BASE_PATH}/tuChoi/${TID}`, { LyDo: reason });
+            await authAxios.post(API_VERIFY_REJECT_COMIC_PATH, { 
+                TID: TID, 
+                DaDuyet: 0,
+                LyDoTuChoi: reason 
+            }); 
             setMessage(`Truyện ID: ${TID} đã bị từ chối.`);
-            fetchComics();
+            setRefreshTrigger(prev => prev + 1);
         } catch (err) {
             setError(err.response?.data?.error || 'Lỗi khi từ chối truyện.');
         } finally {
-            setMessage(null);
+            setTimeout(() => setMessage(null), 3000);
         }
     };
     
@@ -90,26 +116,34 @@ const ComicManagementPage = () => {
     
     const handleSearch = (e) => {
         e.preventDefault();
-        setCurrentPage(1); 
-        
-        fetchComics(); 
+        if (currentPage !== 1) {
+            setCurrentPage(1); 
+        } else {
+            setRefreshTrigger(prev => prev + 1);
+        }
+    };
+
+    const getStatusText = (status) => {
+        switch (status) {
+            case 'VERIFIED': return 'Đã Duyệt';
+            case 'REJECTED': return 'Đã Từ Chối';
+            default: return 'Chờ Duyệt';
+        }
     };
 
     return (
         <div style={styles.container}>
-            <h2>Quản Lý Danh Sách Truyện</h2>
+            <h2 style={styles.title}>Quản Lý Danh Sách Truyện</h2>
             
             <div style={styles.controls}>
                 <div style={styles.filterGroup}>
-                    <label>Trạng thái:</label>
+                    <label style={{fontWeight: '500'}}>Trạng thái:</label>
                     <select 
                         value={filterStatus} 
                         onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
                         style={styles.select}
                     >
-                        <option value="UNVERIFIED">Chờ Duyệt</option>
-                        <option value="VERIFIED">Đã Duyệt</option>
-                        <option value="REJECTED">Đã Từ Chối</option>
+                        <option value="UNVERIFIED">Chờ Duyệt (Mặc định)</option>
                     </select>
                 </div>
 
@@ -121,7 +155,7 @@ const ComicManagementPage = () => {
                         onChange={(e) => setSearchKeyword(e.target.value)}
                         style={styles.input}
                     />
-                    <button type="submit" style={styles.searchButton}>Tìm</button>
+                    <button type="submit" style={styles.searchButton}>🔎 Tìm</button>
                 </form>
             </div>
 
@@ -132,77 +166,81 @@ const ComicManagementPage = () => {
                 <p style={styles.loading}>Đang tải danh sách...</p>
             ) : (
                 <>
-                    <p style={styles.summary}>Tổng cộng: {totalItems} truyện</p>
+                    <p style={styles.summary}>Tổng cộng: {totalItems} truyện được tìm thấy</p>
                     <table style={styles.table}>
                         <thead>
-                            <tr>
-                                <th>TID</th>
-                                <th>Tên Truyện</th>
-                                <th>Tác giả</th>
-                                <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
-                                <th>Hành động</th>
+                            <tr style={styles.tableHeader}>
+                                <th style={styles.th}>TID</th>
+                                <th style={styles.th}>Tên Truyện</th>
+                                <th style={styles.th}>Tác giả</th>
+                                <th style={styles.th}>Trạng thái</th>
+                                <th style={styles.th}>Ngày tạo</th>
+                                <th style={styles.thAction}>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
                             {comics.length > 0 ? (
                                 comics.map((comic) => (
-                                    <tr key={comic.TID}>
-                                        <td>{comic.TID}</td>
-                                        <td>{comic.TenTruyen}</td>
-                                        <td>{comic.TenTaiKhoanTacGia || 'N/A'}</td>
-                                        <td>
+                                    <tr key={comic.TID} style={styles.tableRow}>
+                                        <td style={styles.td}>{comic.TID}</td>
+                                        <td style={styles.tdTitle}>{comic.TenTruyen}</td>
+                                        <td style={styles.td}>{comic.TenTaiKhoanTacGia || 'N/A'}</td>
+                                        <td style={styles.td}>
                                             <span style={styles.statusBadge[comic.TrangThai || 'UNVERIFIED']}>
-                                                {comic.TrangThai === 'VERIFIED' ? 'Đã Duyệt' : comic.TrangThai === 'REJECTED' ? 'Từ Chối' : 'Chờ Duyệt'}
+                                                {getStatusText(comic.TrangThai)}
                                             </span>
                                         </td>
-                                        <td>{new Date(comic.NgayTao).toLocaleDateString('vi-VN')}</td>
-                                        <td>
+                                        <td style={styles.td}>{new Date(comic.NgayTao).toLocaleDateString('vi-VN')}</td>
+                                        <td style={styles.tdAction}>
                                             {comic.TrangThai === 'UNVERIFIED' && (
                                                 <>
                                                     <button 
                                                         onClick={() => handleVerifyComic(comic.TID)}
-                                                        style={styles.actionButton.verify}
+                                                        style={{...styles.actionButton, backgroundColor: '#28a745'}}
+                                                        disabled={loading}
                                                     >
                                                         Duyệt
                                                     </button>
                                                     <button 
                                                         onClick={() => handleRejectComic(comic.TID)}
-                                                        style={styles.actionButton.reject}
+                                                        style={{...styles.actionButton, backgroundColor: '#dc3545'}}
+                                                        disabled={loading}
                                                     >
                                                         Từ chối
                                                     </button>
                                                 </>
                                             )}
                                             {(comic.TrangThai === 'VERIFIED' || comic.TrangThai === 'REJECTED') && (
-                                                <button style={styles.actionButton.view}>Chi tiết</button>
+                                                <button style={{...styles.actionButton, backgroundColor: '#17a2b8'}}>Chi tiết</button>
                                             )}
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="6" style={{textAlign: 'center'}}>Không tìm thấy truyện nào.</td></tr>
+                                <tr><td colSpan="6" style={{...styles.td, textAlign: 'center', padding: '20px'}}>Không tìm thấy truyện nào với bộ lọc này.</td></tr>
                             )}
                         </tbody>
                     </table>
                     
-                    <div style={styles.pagination}>
-                        <button 
-                            onClick={() => handlePageChange(currentPage - 1)} 
-                            disabled={currentPage === 1}
-                            style={styles.pageButton}
-                        >
-                            Trước
-                        </button>
-                        <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
-                        <button 
-                            onClick={() => handlePageChange(currentPage + 1)} 
-                            disabled={currentPage === totalPages}
-                            style={styles.pageButton}
-                        >
-                            Sau
-                        </button>
-                    </div>
+                    {false && (
+                        <div style={styles.pagination}>
+                            <button 
+                                onClick={() => handlePageChange(currentPage - 1)} 
+                                disabled={currentPage === 1 || loading}
+                                style={styles.pageButton}
+                            >
+                                <span role="img" aria-label="previous">⬅️</span> Trước
+                            </button>
+                            <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
+                            <button 
+                                onClick={() => handlePageChange(currentPage + 1)} 
+                                disabled={currentPage === totalPages || loading}
+                                style={styles.pageButton}
+                            >
+                                Sau <span role="img" aria-label="next">➡️</span>
+                            </button>
+                        </div>
+                    )}
                 </>
             )}
         </div>
@@ -210,31 +248,43 @@ const ComicManagementPage = () => {
 };
 
 const styles = {
-    container: { padding: '20px', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' },
+    container: { padding: '30px', backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)' },
+    title: { borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '20px' },
     controls: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' },
     filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
-    select: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc' },
+    select: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc' },
     searchForm: { display: 'flex', gap: '5px' },
-    input: { padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '250px' },
-    searchButton: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' },
-    error: { color: 'red', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
-    message: { color: 'green', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px' },
-    loading: { textAlign: 'center', padding: '30px' },
-    summary: { marginBottom: '15px', fontWeight: 'bold' },
-    table: { width: '100%', borderCollapse: 'collapse', marginTop: '15px' },
+    input: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc', width: '300px' },
+    searchButton: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' },
+    error: { color: '#721c24', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #f5c6cb' },
+    message: { color: '#155724', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #c3e6cb' },
+    loading: { textAlign: 'center', padding: '40px', fontSize: '1.2em' },
+    summary: { marginBottom: '15px', fontWeight: 'bold', color: '#495057' },
+    table: { width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px', marginTop: '15px' },
+    tableHeader: { backgroundColor: '#e9ecef' },
+    th: { textAlign: 'left', padding: '15px', borderBottom: '2px solid #dee2e6' },
+    thAction: { textAlign: 'center', padding: '15px', borderBottom: '2px solid #dee2e6' },
+    td: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd' },
+    tdTitle: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd', fontWeight: '600', color: '#007bff' },
+    tdAction: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd', textAlign: 'center' },
     statusBadge: {
-        UNVERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.9em' },
-        VERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.9em' },
-        REJECTED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.9em' },
+        UNVERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.85em', fontWeight: '600' },
+        VERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.85em', fontWeight: '600' },
+        REJECTED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.85em', fontWeight: '600' },
     },
     actionButton: {
-        verify: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
-        reject: { padding: '5px 10px', marginRight: '5px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' },
-        view: { padding: '5px 10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }
+        padding: '6px 12px',
+        margin: '0 4px',
+        color: 'white',
+        border: 'none',
+        borderRadius: '5px',
+        cursor: 'pointer',
+        fontSize: '0.9em',
+        transition: 'opacity 0.2s',
     },
-    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '20px', gap: '15px' },
-    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' },
-    pageInfo: { fontWeight: 'bold' }
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '30px', gap: '20px' },
+    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '5px', cursor: 'pointer', transition: 'background-color 0.2s' },
+    pageInfo: { fontWeight: 'bold', color: '#343a40' }
 };
 
 export default ComicManagementPage;

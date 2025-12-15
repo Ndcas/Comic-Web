@@ -118,11 +118,6 @@ function StoryDetail() {
     const firstChapter = chapters.length > 0 ? chapters[0] : null;
     const latestChapter = chapters.length > 0 ? chapters[chapters.length - 1] : null;
 
-    const statusText = story.TrangThai == 0 ? 'Hoàn Thành' : 'Đang Ra';
-    const statusColor = story.TrangThai == 0 ? 'bg-blue-600' : 'bg-red-600';
-
-    const luotThich = story.LuotThich;
-
     return (
         <div className="container mx-auto p-4 max-w-7xl">
 
@@ -147,8 +142,8 @@ function StoryDetail() {
                             <Link
                                 to={`/read/${story.TID}/${firstChapter.CTID}`}
                                 className="w-full py-3 bg-red-600 text-white font-bold text-lg 
-                                                    rounded-full flex items-center justify-center 
-                                                    hover:bg-red-700 transition-colors shadow-lg">
+                                            rounded-full flex items-center justify-center 
+                                            hover:bg-red-700 transition-colors shadow-lg">
                                 <IconBookOpen className="w-4 h-4 mr-2" /> Đọc Từ Chương Đầu
                             </Link>
                         )}
@@ -156,8 +151,8 @@ function StoryDetail() {
                             <Link
                                 to={`/read/${story.TID}/${latestChapter.CTID}`}
                                 className="w-full py-3 bg-gray-200 text-gray-800 font-bold text-lg 
-                                                    rounded-full flex items-center justify-center 
-                                                    hover:bg-gray-300 transition-colors border border-gray-300">
+                                            rounded-full flex items-center justify-center 
+                                            hover:bg-gray-300 transition-colors border border-gray-300">
                                 <IconArrowRight className="w-4 h-4 mr-2" /> Chương Mới Nhất
                             </Link>
                         )}
