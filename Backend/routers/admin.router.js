@@ -8,8 +8,6 @@ const router = express.Router();
 // => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), token (access token), refeshToken (trong cookie)
 router.post('/dangNhap', controller.dangNhap);
 
-
-
 // Yêu cầu có refreshToken của Admin trong cookie
 // => hanDung (hạn dùng của access token bằng tổng của Date.now() và thời gian sống của token), accessToken
 router.get('/lamMoiAccessToken', controller.lamMoiAccessToken);

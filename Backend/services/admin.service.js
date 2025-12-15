@@ -210,8 +210,7 @@ async function layBaoCaoHeThong(force = false) {
                 'DaDuyet',
                 [database.fn('COUNT', database.col('TID')), 'SoTruyen']
             ],
-            group: 'TID',
-            logging: true
+            group: 'TID'
         });
         let verifiedComics = 0;
         let unverifiedComics = 0;
