@@ -1,9 +1,54 @@
 import React, { useState, useEffect, useCallback } from 'react';
+// import { FiSend, FiUser } from 'react-icons/fi'; // Ví dụ nếu bạn có thư viện icon
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const API_PREFIX = '/truyen'; 
 
 const getAccessToken = () => localStorage.getItem('token'); 
+
+// Component con: Hiển thị một bình luận duy nhất
+const CommentItem = ({ comment, formatTime }) => {
+    // Tạo màu nền avatar ngẫu nhiên dựa trên tên người dùng (để có tính thẩm mỹ)
+    const username = comment.NguoiDung?.TenTaiKhoan || 'Người dùng ẩn danh';
+    const initial = username.charAt(0).toUpperCase();
+    const avatarColor = `hsl(${username.length * 40 % 360}, 70%, 50%)`;
+
+    return (
+        <li className="flex space-x-3 p-4 bg-gray-50 border-l-4 border-red-200 rounded-lg shadow-sm">
+            
+            {/* Avatar Placeholder */}
+            <div 
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-md"
+                style={{ backgroundColor: avatarColor }}
+                title={username}
+            >
+                {initial}
+            </div>
+
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                    <p className="comment-author text-sm">
+                        <strong className="text-red-700 font-extrabold mr-2 hover:text-red-800 transition-colors">
+                            {username}
+                        </strong> 
+                        {/* Bạn có thể thêm badge cho Admin/Tác giả ở đây */}
+                    </p>
+                    <small className="text-gray-500 text-xs">
+                        {formatTime(comment.ThoiGianBinhLuan)}
+                    </small>
+                </div>
+                <p className="comment-content text-gray-800 break-words whitespace-pre-wrap">
+                    {comment.NoiDung}
+                </p>
+                {/* Khu vực Trả lời (Reply) có thể thêm vào sau */}
+                <div className="mt-2 text-xs text-blue-500 hover:text-blue-700 cursor-pointer">
+                    {/* <span className="mr-1">↶</span> Trả lời */}
+                </div>
+            </div>
+        </li>
+    );
+};
+
 
 const CommentSection = ({ TID }) => {
     const [comments, setComments] = useState([]);
@@ -16,6 +61,7 @@ const CommentSection = ({ TID }) => {
     const MAX_CHARACTERS = 300;
 
     const fetchComments = useCallback(async () => {
+        // ... (Logic fetchComments giữ nguyên)
         if (!API_BASE_URL) {
             setError('Lỗi cấu hình: Thiếu đường dẫn BACKEND_URL.');
             return;
@@ -29,7 +75,9 @@ const CommentSection = ({ TID }) => {
             const data = await response.json();
 
             if (response.ok) {
-                setComments(data.binhLuans || []);
+                // Sắp xếp bình luận theo thời gian mới nhất lên đầu
+                const sortedComments = data.binhLuans ? data.binhLuans.sort((a, b) => new Date(b.ThoiGianBinhLuan) - new Date(a.ThoiGianBinhLuan)) : [];
+                setComments(sortedComments);
             } else {
                 setError(data.error || 'Không thể tải bình luận. Vui lòng kiểm tra API.');
                 setComments([]);
@@ -49,6 +97,7 @@ const CommentSection = ({ TID }) => {
     }, [TID, fetchComments]);
 
     const handleSubmit = async (e) => {
+        // ... (Logic handleSubmit giữ nguyên)
         e.preventDefault();
         const noiDung = commentContent.trim();
         if (!noiDung || noiDung.length > MAX_CHARACTERS) return;
@@ -105,16 +154,20 @@ const CommentSection = ({ TID }) => {
 
     return (
         <div className="mt-8">
-            <section id="post-comment-section" className="bg-white p-6 rounded-xl shadow-md mb-8 border border-gray-100">
-                <h4 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Đăng bình luận của bạn</h4>
-                {error && <p className="text-red-500 mb-4 p-2 bg-red-50 border border-red-200 rounded">{error}</p>}
-                {successMessage && <p className="text-green-600 mb-4 p-2 bg-green-50 border border-green-200 rounded">{successMessage}</p>}
+            
+            {/* PHẦN I: ĐĂNG BÌNH LUẬN */}
+            <section id="post-comment-section" className="bg-blue-50 p-6 rounded-xl shadow-lg mb-8 border border-blue-200">
+                <h4 className="text-2xl font-extrabold mb-4 text-blue-800 flex items-center">
+                    <span className="mr-2 text-3xl">💬</span> Đóng góp ý kiến của bạn
+                </h4>
+                {error && <p className="text-red-600 mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">{error}</p>}
+                {successMessage && <p className="text-green-700 mb-4 p-3 bg-green-100 border border-green-300 rounded-lg">{successMessage}</p>}
 
                 {IS_LOGGED_IN ? (
-                    <form onSubmit={handleSubmit}>
+                    <form onSubmit={handleSubmit} className="flex flex-col space-y-3">
                         <textarea
                             id="comment-content"
-                            className="w-full h-24 p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 resize-none text-gray-700"
+                            className="w-full h-28 p-4 border-2 border-blue-300 rounded-xl focus:ring-blue-500 focus:border-blue-500 resize-none text-gray-800 text-base shadow-inner transition-all duration-200"
                             placeholder={`Viết bình luận của bạn tại đây (tối đa ${MAX_CHARACTERS} ký tự)...`}
                             required
                             maxLength={MAX_CHARACTERS}
@@ -122,50 +175,50 @@ const CommentSection = ({ TID }) => {
                             onChange={(e) => setCommentContent(e.target.value)}
                             disabled={isLoading}
                         />
-                        <div id="char-count" className="text-sm text-gray-500 mt-1 flex justify-end">
-                            {commentContent.length}/{MAX_CHARACTERS}
+                        <div className="flex justify-between items-center">
+                            <div id="char-count" className="text-sm text-blue-600">
+                                {commentContent.length}/{MAX_CHARACTERS} ký tự
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={isLoading || commentContent.length === 0}
+                                className={`px-6 py-3 rounded-xl text-white font-bold text-lg flex items-center justify-center transition-all duration-200 shadow-md hover:shadow-xl
+                                    ${isLoading || commentContent.length === 0 
+                                        ? 'bg-red-300 cursor-not-allowed' 
+                                        : 'bg-red-600 hover:bg-red-700'}`
+                                }
+                            >
+                                <span className="mr-2">🚀</span> {isLoading ? 'Đang gửi...' : 'Gửi Bình Luận'}
+                            </button>
                         </div>
-                        <button 
-                            type="submit" 
-                            disabled={isLoading || commentContent.length === 0}
-                            className={`mt-3 px-6 py-2 rounded-full text-white font-semibold transition-colors
-                                ${isLoading || commentContent.length === 0 
-                                    ? 'bg-red-300 cursor-not-allowed' 
-                                    : 'bg-red-600 hover:bg-red-700 shadow-lg'}`
-                            }
-                        >
-                            {isLoading ? 'Đang gửi...' : 'Gửi Bình Luận'}
-                        </button>
                     </form>
                 ) : (
-                    <div id="login-prompt" className="p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700 rounded-lg">
-                        <p>
-                            Vui lòng <a href="/login" className="text-red-600 font-bold hover:underline">Đăng nhập</a> để bình luận.
+                    <div id="login-prompt" className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg shadow-md">
+                        <p className="font-medium text-lg">
+                            <span className="mr-2">⚠️</span> Vui lòng <a href="/login" className="text-red-700 font-extrabold hover:text-red-900 hover:underline transition-colors">Đăng nhập</a> để bình luận và tham gia thảo luận!
                         </p>
                     </div>
                 )}
             </section>
             
-            <section id="comment-section" className="bg-white p-6 rounded-xl shadow-md">
-                <h3 className="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Bình luận ({comments.length})</h3>
+            {/* PHẦN II: DANH SÁCH BÌNH LUẬN */}
+            <section id="comment-section" className="bg-white p-6 rounded-xl shadow-2xl border border-gray-200">
+                <h3 className="text-2xl font-extrabold mb-6 text-gray-900 border-b-4 border-red-500 inline-block pb-1">
+                    Bình luận ({comments.length})
+                </h3>
                 
-                {isLoading && <div className="text-center p-4 text-red-500">Đang tải bình luận...</div>}
+                {isLoading && <div className="text-center p-6 text-red-500 bg-gray-50 rounded-lg">Đang tải bình luận...</div>}
                 
                 {!isLoading && comments.length === 0 && (
-                    <div id="no-comments" className="text-center p-6 text-gray-500 bg-gray-50 rounded">
-                        {error ? `Lỗi: ${error}` : 'Chưa có bình luận nào cho truyện này.'}
+                    <div id="no-comments" className="text-center p-8 text-gray-600 bg-gray-100 rounded-xl shadow-inner">
+                        <p className="text-lg font-medium">✨ Hãy là người đầu tiên bình luận về truyện này! ✨</p>
+                        {error && <p className="text-sm text-red-500 mt-2">Lỗi: {error}</p>}
                     </div>
                 )}
                 
-                <ul id="comments-list" className="space-y-4">
+                <ul id="comments-list" className="space-y-6">
                     {comments.map((comment, index) => (
-                        <li key={index} className="border-b border-gray-100 pb-4 last:border-b-0">
-                            <p className="comment-author text-sm mb-1">
-                                <strong className="text-red-600 font-bold mr-2">{comment.NguoiDung?.TenTaiKhoan || 'Người dùng ẩn danh'}</strong> 
-                                <small className="text-gray-500">({formatTime(comment.ThoiGianBinhLuan)})</small>
-                            </p>
-                            <p className="comment-content text-gray-700">{comment.NoiDung}</p>
-                        </li>
+                        <CommentItem key={comment.BLID || index} comment={comment} formatTime={formatTime} />
                     ))}
                 </ul>
             </section>
