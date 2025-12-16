@@ -536,13 +536,10 @@ async function layLichSuDoc(ndid) {
             attributes: ['NDID'],
             where: { NDID: ndid, TrangThai: 1 }
         });
-
         if (!nguoiDung) {
             return { ok: false, status: 401, error: 'Không tìm thấy người dùng' };
         }
-
-       
-        let tatCaLichSu = await LichSuDoc.findAll({
+        let lichSuDoc = await LichSuDoc.findAll({
             where: { NDID: nguoiDung.NDID },
             include: {
                 model: ChuongTruyen,
@@ -550,25 +547,17 @@ async function layLichSuDoc(ndid) {
             },
             order: [['NgayDoc', 'DESC']]
         });
-
-        
-        const uniqueHistory = [];
-        const seenTIDs = new Set();
-
-        for (const item of tatCaLichSu) {
-            
-            const tid = item.ChuongTruyen?.Truyen?.TID;
-            
-            
-            if (tid && !seenTIDs.has(tid)) {
-                seenTIDs.add(tid);
-                uniqueHistory.push(item);
+        let encounteredTIDs = new Set();
+        lichSuDoc = lichSuDoc.filter(item => {
+            if (encounteredTIDs.has(item.ChuongTruyen.TID)) {
+                return false;
             }
-        }
-
+            encounteredTIDs.add(item.ChuongTruyen.TID);
+            return true;
+        });
         return {
             ok: true,
-            data: { lichSuDoc: uniqueHistory } 
+            data: { lichSuDoc: lichSuDoc } 
         };
     } catch (error) {
         logger.error('Lỗi khi lấy lịch sử đọc', error);
