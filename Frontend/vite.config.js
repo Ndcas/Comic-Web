@@ -12,13 +12,12 @@ export default defineConfig({
     plugins: [react()],
 
     server: {
+        historyApiFallback: true, 
         proxy: {
             '/api': {
                 ...proxyConfig,
                 rewrite: (path) => path.replace(/^\/api/, ''),
             },
-            
-            '/truyen': proxyConfig,
             '/nguoiDung': proxyConfig,
             '/baoCao': proxyConfig,
         },

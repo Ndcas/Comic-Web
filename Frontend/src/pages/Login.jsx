@@ -3,12 +3,11 @@ import { useNavigate, Link } from "react-router-dom";
 import { post } from "../utils/request";
 import { useAuth } from "../utils/AuthContext"; 
 
-// Biến môi trường
+
 const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function Login() {
   const navigate = useNavigate();
-  // Khắc phục lỗi: Đảm bảo useAuth trả về object chứa { login }
   const { login } = useAuth(); 
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
@@ -21,10 +20,8 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    let errorUser = ''; 
-
     try {
-      // 1. THỬ ĐĂNG NHẬP VỚI TÀI KHOẢN NGƯỜI DÙNG (NguoiDung)
+      
       let res = await post(
         `${VITE_BACKEND_URL}/nguoiDung/dangNhap`, 
         'application/json', 
@@ -45,46 +42,15 @@ export default function Login() {
         localStorage.setItem("exp", data.hanDung); 
         
         login(); 
-        navigate("/");
-        return;
+        navigate("/"); // Về trang chủ người dùng
+      } else {
+        // Nếu API trả về lỗi (sai pass, không tồn tại...)
+        setError(data.error || 'Tài khoản hoặc mật khẩu không đúng.');
       }
-
-      // LƯU LỖI USER (nếu res.ok là false)
-      errorUser = data.error || 'Tài khoản hoặc mật khẩu không đúng.';
-      
-      // --- 2. Nếu đăng nhập User thất bại, thử Admin ---
-      
-      let adminRes = await post(
-        `${VITE_BACKEND_URL}/admin/dangNhap`, 
-        'application/json', 
-        JSON.stringify({
-          Email: form.email,
-          MatKhau: form.password
-        })
-      );
-      
-      let adminData = await adminRes.json();
-      
-      if (adminRes.ok) {
-        // Đăng nhập Admin thành công
-        // Sử dụng adminData.accessToken hoặc adminData.token tùy theo API
-        localStorage.setItem("token", adminData.accessToken || adminData.token); 
-        localStorage.setItem("role", "Admin");
-        localStorage.setItem("exp", adminData.hanDung);
-        localStorage.setItem("email", form.email); 
-        
-        login(); 
-        navigate("/admin-dashboard");
-        return;
-      }
-      
-      // 3. Nếu Admin cũng thất bại, ném lỗi User đã lưu
-      // Chúng ta ưu tiên hiển thị lỗi của User vì đó là cổng đăng nhập chính
-      throw new Error(errorUser);
 
     } catch (err) {
-      // Bắt lỗi mạng hoặc lỗi đã được ném ở trên (errorUser)
-      setError(err.message || 'Lỗi hệ thống, vui lòng thử lại sau.');
+      // Bắt lỗi kết nối mạng
+      setError('Lỗi hệ thống, vui lòng thử lại sau.');
     }
   };
 
@@ -92,6 +58,7 @@ export default function Login() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-center">Đăng nhập</h2>
+        
         {/* Hiển thị lỗi */}
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         
