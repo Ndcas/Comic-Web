@@ -52,7 +52,8 @@ async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
             where: {
                 BCBLID: bcblid,
                 DaXuLy: 0
-            }
+            },
+            include: { model: BinhLuan }
         });
         if (!baoCao) {
             return {
@@ -78,7 +79,7 @@ async function xuLyBaoCaoBinhLuan(bcblid, mode = 0) {
             if (mode == 2) {
                 let nguoiDung = await NguoiDung.findOne({
                     where: {
-                        NDID: baoCao.NDID,
+                        NDID: baoCao.BinhLuan.NDID,
                         TrangThai: 1
                     }
                 }, { transaction: transaction });
@@ -142,6 +143,16 @@ async function xuLyBaoCaoTruyen(bctid, mode = 0) {
                 }, { transaction: transaction });
                 await TheLoaiTruyen.destroy({
                     where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                let binhLuans = await BinhLuan.findAll({
+                    attributes: ['BLID'],
+                    where: { TID: truyen.TID }
+                }, { transaction: transaction });
+                let binhLuanIds = binhLuans.map(item => item.BLID);
+                await BaoCaoBinhLuan.destroy({
+                    where: {
+                        BLID: { [Op.in]: binhLuanIds }
+                    }
                 }, { transaction: transaction });
                 await BinhLuan.destroy({
                     where: { TID: truyen.TID }

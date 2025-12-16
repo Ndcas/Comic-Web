@@ -397,6 +397,16 @@ async function doiTenTaiKhoan(ndid, tenTaiKhoan) {
                 error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
             };
         }
+        let existedNguoiDung = await NguoiDung.findOne({
+            where: { TenTaiKhoan: tenTaiKhoan }
+        });
+        if (existedNguoiDung) {
+            return {
+                ok: false,
+                status: 400,
+                error: 'Tên tài khoản đã được sử dụng'
+            };
+        }
         nguoiDung.TenTaiKhoan = tenTaiKhoan;
         await nguoiDung.save();
         deleteFromCachePrefix(`RTNguoiDung:${nguoiDung.NDID}`);
@@ -557,7 +567,7 @@ async function layLichSuDoc(ndid) {
         });
         return {
             ok: true,
-            data: { lichSuDoc: lichSuDoc } 
+            data: { lichSuDoc: lichSuDoc }
         };
     } catch (error) {
         logger.error('Lỗi khi lấy lịch sử đọc', error);
