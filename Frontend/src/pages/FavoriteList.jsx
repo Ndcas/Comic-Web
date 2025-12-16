@@ -17,13 +17,11 @@ export default function FavoriteList() {
 
     const handleUnauthorized = useCallback(() => {
         toast.error("Phiên đăng nhập hết hạn hoặc token không hợp lệ, vui lòng đăng nhập lại.");
-
         localStorage.removeItem('token');
         localStorage.removeItem('role');
         localStorage.removeItem('email');
         localStorage.removeItem('exp');
         localStorage.removeItem('tenTaiKhoan');
-
         navigate('/login');
     }, [navigate]);
 
@@ -42,7 +40,6 @@ export default function FavoriteList() {
             setFavoriteStories(data.truyens || []);
         } catch (err) {
             console.error("Lỗi khi tải danh sách yêu thích:", err);
-
             if (err.status === 401) {
                 handleUnauthorized();
             } else {
@@ -77,7 +74,6 @@ export default function FavoriteList() {
             toast.success("Đã xóa truyện khỏi danh sách yêu thích.");
         } catch (err) {
             console.error(err);
-
             if (err.status === 401) {
                  handleUnauthorized();
             } else {
@@ -100,7 +96,8 @@ export default function FavoriteList() {
         <div className="max-w-6xl mx-auto py-10 px-4">
             <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
 
-            <h1 className="text-3xl font-bold mb-6 border-b pb-2">
+            {/* ĐÃ ĐỔI MÀU CHỮ Ở DÒNG DƯỚI ĐÂY */}
+            <h1 className="text-3xl font-bold mb-6 border-b pb-2 text-red-600">
                 Truyện Yêu Thích Của Bạn ({favoriteStories.length})
             </h1>
 
@@ -111,8 +108,7 @@ export default function FavoriteList() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {favoriteStories.map(story => (
-                        <div key={story.TID} className="bg-white shadow rounded-lg overflow-hidden flex flex-col">
-
+                        <div key={story.TID} className="bg-white shadow rounded-lg overflow-hidden flex flex-col hover:shadow-lg transition-shadow">
                             <div
                                 onClick={() => handleStoryClick(story.TID)}
                                 className="cursor-pointer"

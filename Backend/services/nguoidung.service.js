@@ -534,38 +534,47 @@ async function layLichSuDoc(ndid) {
     try {
         let nguoiDung = await NguoiDung.findOne({
             attributes: ['NDID'],
-            where: {
-                NDID: ndid,
-                TrangThai: 1
-            }
+            where: { NDID: ndid, TrangThai: 1 }
         });
+
         if (!nguoiDung) {
-            return {
-                ok: false,
-                status: 401,
-                error: 'Không tìm thấy người dùng hoặc người dùng đã bị chặn'
-            };
+            return { ok: false, status: 401, error: 'Không tìm thấy người dùng' };
         }
-        let lichSuDoc = await LichSuDoc.findAll({
+
+       
+        let tatCaLichSu = await LichSuDoc.findAll({
             where: { NDID: nguoiDung.NDID },
             include: {
                 model: ChuongTruyen,
                 include: { model: Truyen }
             },
-            order: [
-                ['NgayDoc', 'DESC']
-            ]
+            order: [['NgayDoc', 'DESC']]
         });
+
+        
+        const uniqueHistory = [];
+        const seenTIDs = new Set();
+
+        for (const item of tatCaLichSu) {
+            
+            const tid = item.ChuongTruyen?.Truyen?.TID;
+            
+            
+            if (tid && !seenTIDs.has(tid)) {
+                seenTIDs.add(tid);
+                uniqueHistory.push(item);
+            }
+        }
+
         return {
             ok: true,
-            data: { lichSuDoc: lichSuDoc }
+            data: { lichSuDoc: uniqueHistory } 
         };
     } catch (error) {
         logger.error('Lỗi khi lấy lịch sử đọc', error);
         throw new Error('Lỗi hệ thống');
     }
 }
-
 async function layDanhSachYeuThich(ndid) {
     try {
         let nguoiDung = await NguoiDung.findOne({

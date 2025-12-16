@@ -2,21 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-
-
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sửa lại thẻ html và body để cho phép nội dung tràn 100% */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  /* Xóa bỏ display: flex và place-items: center */
+}
+
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 a {
@@ -27,14 +36,6 @@ a {
 
 a:hover {
   color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
 }
 
 h1 {
@@ -58,22 +59,20 @@ button:hover {
   border-color: #646cff;
 }
 
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
+/* Chế độ màu sáng/tối */
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
     background-color: #ffffff;
   }
-
-  a:hover {
-    color: #747bff;
-  }
-
   button {
     background-color: #f9f9f9;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #242424;
   }
 }
