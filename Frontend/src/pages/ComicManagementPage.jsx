@@ -1,322 +1,267 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuthAxios } from '../utils/AuthContext'; 
+import { useAuthAxios } from '../utils/AuthContext';
 
-
-
-const API_UNVERIFIED_COMICS_PATH = '/truyen/truyenChuaDuyet'; 
-const API_VERIFY_REJECT_COMIC_PATH = '/truyen/duyetTruyen';
-
-const ComicManagementPage = () => {
-    const authAxios = useAuthAxios(); 
-
+const ManageComicsPage = () => {
+    const authAxios = useAuthAxios();
     const [comics, setComics] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const [pageSize] = useState(10); 
+    const [loading, setLoading] = useState(false);
     
-    const [filterStatus, setFilterStatus] = useState('UNVERIFIED');
-    const [searchKeyword, setSearchKeyword] = useState('');
-    const [message, setMessage] = useState(null);
-    
-    const [refreshTrigger, setRefreshTrigger] = useState(0); 
+    const [selectedComic, setSelectedComic] = useState(null);
+    const [aiAdvice, setAiAdvice] = useState("");
+    const [loadingAI, setLoadingAI] = useState(false);
+    const [selectedChapter, setSelectedChapter] = useState(null); 
 
-    const fetchComics = useCallback(async () => {
+    const fetchPendingComics = useCallback(async () => {
         setLoading(true);
-        setError(null);
-        
-        let apiPath = '';
-
-        if (filterStatus === 'UNVERIFIED') {
-            apiPath = API_UNVERIFIED_COMICS_PATH; 
-        } else {
-            setError(`Chức năng lọc theo trạng thái "${filterStatus}" chưa được hỗ trợ bởi Backend.`);
-            setLoading(false);
-            setComics([]);
-            return; 
-        }
-        
-        
-        const params = {
-            page: currentPage,
-            limit: pageSize,
-          
-            keyword: searchKeyword.trim(), 
-        };
-        
-      0
-        const query = Object.keys(params)
-            .filter(key => params[key] && params[key] !== '') 
-            .map(key => `${key}=${encodeURIComponent(params[key])}`)
-            .join('&');
-        
-        const fullApiPath = query ? `${apiPath}?${query}` : apiPath;
-        // ----------------------------------------------------
-
         try {
-            const response = await authAxios.get(fullApiPath);
-            
-           
-            const fetchedComics = response.data.truyens || response.data.data || response.data || []; 
-            const total = response.data.totalItems || fetchedComics.length || 0;
-            const totalPgs = response.data.totalPages || 1;
-
-            setComics(fetchedComics); 
-            setTotalItems(total);
-            setTotalPages(totalPgs); 
-            
-        } catch (err) {
-           
-            const status = err.response?.status;
-            let errorMessage = `Lỗi tải truyện từ ${fullApiPath}.`;
-
-            if (status === 404) {
-                errorMessage = `Lỗi 404: Không tìm thấy đường dẫn ${fullApiPath}. Vui lòng kiểm tra lại Base URL và Router Backend.`;
-            } else if (status === 401 || status === 403) {
-                errorMessage = `Lỗi xác thực (401/403): Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập.`;
-            } else if (err.response?.data?.error) {
-                errorMessage = `Backend Error: ${err.response.data.error}`;
-            }
-
-            setError(errorMessage);
+            const response = await authAxios.get('/truyen/truyenChuaDuyet');
+            setComics(response.data.truyens || []);
+        } catch (error) {
+            console.error("Lỗi lấy danh sách:", error.response?.data?.error);
         } finally {
             setLoading(false);
         }
-    }, [authAxios, currentPage, pageSize, filterStatus, searchKeyword, refreshTrigger]);
+    }, [authAxios]);
 
     useEffect(() => {
-        fetchComics();
-    }, [fetchComics]);
+        fetchPendingComics();
+    }, [fetchPendingComics]);
 
-    useEffect(() => {
-        if (currentPage > totalPages && currentPage > 1 && !loading) {
-            setCurrentPage(totalPages);
+    const handleViewDetail = async (tid) => {
+        setAiAdvice(""); 
+        setSelectedChapter(null);
+        try {
+            const response = await authAxios.get(`/truyen/thongTinTruyenAdmin?TID=${tid}`);
+            setSelectedComic(response.data.truyen);
+        } catch (error) {
+            alert(error.response?.data?.error || "Lỗi tải thông tin truyện");
         }
-    }, [totalPages, currentPage, loading]);
+    };
 
-    
-    const handleVerifyComic = async (TID) => {
-        if (!window.confirm(`Bạn có chắc chắn muốn DUYỆT truyện ID: ${TID} không?`)) return;
+    const handleViewChapter = async (ctid) => {
+        try {
+            const response = await authAxios.get(`/truyen/thongTinChuongTruyenAdmin?CTID=${ctid}`);
+            setSelectedChapter(response.data.chuongTruyen);
+        } catch (error) {
+            alert("Không thể tải nội dung chương");
+        }
+    };
+
+    const getAIAdvice = async (tid) => {
+        setLoadingAI(true);
+        try {
+            const response = await authAxios.get(`/truyen/thamKhaoYKienAIDuyetTruyen?TID=${tid}`);
+            setAiAdvice(response.data.result);
+        } catch (error) {
+            setAiAdvice("AI Gemini hiện không thể phản hồi.");
+        } finally {
+            setLoadingAI(false);
+        }
+    };
+
+    const handleAction = async (tid, isApprove) => {
+        let lyDo = null;
+        if (!isApprove) {
+            lyDo = prompt("Nhập lý do từ chối (Ghi chú cho tác giả):");
+            if (lyDo === null) return;
+        }
 
         try {
-            setMessage(`Đang duyệt truyện ID: ${TID}...`);
-            await authAxios.post(API_VERIFY_REJECT_COMIC_PATH, { 
-                TID: TID, 
-                DaDuyet: 1
-            }); 
-            setMessage(`Truyện ID: ${TID} đã được duyệt thành công!`);
-            setRefreshTrigger(prev => prev + 1); 
-        } catch (err) {
-            setError(err.response?.data?.error || 'Lỗi khi duyệt truyện.');
-        } finally {
-            setTimeout(() => setMessage(null), 3000);
-        }
-    };
-
-    
-    const handleRejectComic = async (TID) => {
-        const reason = prompt(`Nhập lý do TỪ CHỐI truyện ID: ${TID}:`);
-        if (!reason) return;
-
-        try {
-            setMessage(`Đang từ chối truyện ID: ${TID}...`);
-            await authAxios.post(API_VERIFY_REJECT_COMIC_PATH, { 
-                TID: TID, 
-                DaDuyet: 0,
-                LyDoTuChoi: reason 
-            }); 
-            setMessage(`Truyện ID: ${TID} đã bị từ chối.`);
-            setRefreshTrigger(prev => prev + 1);
-        } catch (err) {
-            setError(err.response?.data?.error || 'Lỗi khi từ chối truyện.');
-        } finally {
-            setTimeout(() => setMessage(null), 3000);
-        }
-    };
-    
-    
-    const handlePageChange = (page) => {
-        if (page > 0 && page <= totalPages) {
-            setCurrentPage(page);
-        }
-    };
-
-    
-    const handleSearch = (e) => {
-        e.preventDefault();
-       
-        if (currentPage !== 1) {
-            setCurrentPage(1); 
-        } else {
-            setRefreshTrigger(prev => prev + 1);
-        }
-    };
-
-    const getStatusText = (status) => {
-        switch (status) {
-            case 'VERIFIED': return 'Đã Duyệt';
-            case 'REJECTED': return 'Đã Từ Chối';
-            default: return 'Chờ Duyệt';
+            await authAxios.post('/truyen/duyetTruyen', {
+                TID: tid,
+                DaDuyet: isApprove ? 1 : 0, 
+                LyDoTuChoi: lyDo
+            });
+            alert(isApprove ? "Đã duyệt và xuất bản truyện!" : "Đã từ chối truyện.");
+            setSelectedComic(null);
+            fetchPendingComics();
+        } catch (error) {
+            alert(error.response?.data?.error || "Thao tác thất bại.");
         }
     };
 
     return (
         <div style={styles.container}>
-            <h2 style={styles.title}>Quản Lý Danh Sách Truyện</h2>
+            <h2 style={styles.mainTitle}>Quản Trị Hệ Thống</h2>
             
-            <div style={styles.controls}>
-                <div style={styles.filterGroup}>
-                    <label style={{fontWeight: '500'}}>Trạng thái:</label>
-                    <select 
-                        value={filterStatus} 
-                        onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                        style={styles.select}
-                    >
-                        <option value="UNVERIFIED">Chờ Duyệt (Mặc định)</option>
-                    </select>
+            <div style={styles.whiteBox}>
+                <div style={styles.headerRow}>
+                    <h3 style={styles.boxTitle}>Quản Lý Danh Sách Truyện</h3>
+                    <p style={styles.summaryText}>Số lượng truyện đang chờ: <b>{comics.length}</b></p>
+                </div>
+                
+                <div style={styles.searchBar}>
+                    <div style={styles.filterGroup}>
+                        <label style={styles.label}>Trạng thái: </label>
+                        <select style={styles.select} disabled>
+                            <option>Chờ Duyệt (Mặc định)</option>
+                        </select>
+                    </div>
+                    <div style={styles.inputGroup}>
+                        <input type="text" placeholder="Tìm kiếm theo Tên truyện..." style={styles.input} />
+                        <button style={styles.btnSearch}>🔍 Tìm</button>
+                    </div>
                 </div>
 
-                <form onSubmit={handleSearch} style={styles.searchForm}>
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm theo Tên truyện..."
-                        value={searchKeyword}
-                        onChange={(e) => setSearchKeyword(e.target.value)}
-                        style={styles.input}
-                    />
-                    <button type="submit" style={styles.searchButton}>🔎 Tìm</button>
-                </form>
-            </div>
-
-            {error && <p style={styles.error}>{error}</p>}
-            {message && <p style={styles.message}>{message}</p>}
-
-            {loading ? (
-                <p style={styles.loading}>Đang tải danh sách...</p>
-            ) : (
-                <>
-                    <p style={styles.summary}>Tổng cộng: {totalItems} truyện được tìm thấy</p>
+                <div style={styles.tableWrapper}>
                     <table style={styles.table}>
                         <thead>
-                            <tr style={styles.tableHeader}>
+                            <tr style={styles.tableHeaderRow}>
                                 <th style={styles.th}>TID</th>
                                 <th style={styles.th}>Tên Truyện</th>
                                 <th style={styles.th}>Tác giả</th>
                                 <th style={styles.th}>Trạng thái</th>
                                 <th style={styles.th}>Ngày tạo</th>
-                                <th style={styles.thAction}>Hành động</th>
+                                <th style={styles.th}>Hành động</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {comics.length > 0 ? (
+                            {loading ? (
+                                <tr><td colSpan="6" style={styles.tdCenter}>Đang kết nối Database...</td></tr>
+                            ) : comics.length > 0 ? (
                                 comics.map((comic) => (
-                                    <tr key={comic.TID} style={styles.tableRow}>
+                                    <tr key={comic.TID} style={styles.tr}>
                                         <td style={styles.td}>{comic.TID}</td>
-                                        <td style={styles.tdTitle}>{comic.TenTruyen}</td>
-                                        <td style={styles.td}>{comic.TenTaiKhoanTacGia || 'N/A'}</td>
+                                        <td style={styles.td}><b>{comic.TenTruyen}</b></td>
+                                        <td style={styles.td}>{comic.TacGia || 'Chưa rõ'}</td>
                                         <td style={styles.td}>
-                                            <span style={styles.statusBadge[comic.TrangThai || 'UNVERIFIED']}>
-                                                {getStatusText(comic.TrangThai)}
-                                            </span>
+                                            <span style={styles.statusBadge}>Chờ Duyệt</span>
                                         </td>
                                         <td style={styles.td}>{new Date(comic.NgayTao).toLocaleDateString('vi-VN')}</td>
-                                        <td style={styles.tdAction}>
-                                            {comic.TrangThai === 'UNVERIFIED' && (
-                                                <>
-                                                    <button 
-                                                        onClick={() => handleVerifyComic(comic.TID)}
-                                                        style={{...styles.actionButton, backgroundColor: '#28a745'}}
-                                                        disabled={loading}
-                                                    >
-                                                        Duyệt
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleRejectComic(comic.TID)}
-                                                        style={{...styles.actionButton, backgroundColor: '#dc3545'}}
-                                                        disabled={loading}
-                                                    >
-                                                        Từ chối
-                                                    </button>
-                                                </>
-                                            )}
-                                            {(comic.TrangThai === 'VERIFIED' || comic.TrangThai === 'REJECTED') && (
-                                                <button style={{...styles.actionButton, backgroundColor: '#17a2b8'}}>Chi tiết</button>
-                                            )}
+                                        <td style={styles.td}>
+                                            <button onClick={() => handleViewDetail(comic.TID)} style={styles.actionBtn}>👁️ Xem chi tiết</button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan="6" style={{...styles.td, textAlign: 'center', padding: '20px'}}>Không tìm thấy truyện nào với bộ lọc này.</td></tr>
+                                <tr><td colSpan="6" style={styles.tdCenter}>Không tìm thấy truyện nào chờ duyệt.</td></tr>
                             )}
                         </tbody>
                     </table>
-                    
-                    {/* Bật lại Phân trang nếu Backend đã hỗ trợ phân trang thực sự */}
-                    {totalPages > 1 && (
-                        <div style={styles.pagination}>
-                            <button 
-                                onClick={() => handlePageChange(currentPage - 1)} 
-                                disabled={currentPage === 1 || loading}
-                                style={styles.pageButton}
-                            >
-                                <span role="img" aria-label="previous">⬅️</span> Trước
-                            </button>
-                            <span style={styles.pageInfo}>Trang {currentPage} / {totalPages}</span>
-                            <button 
-                                onClick={() => handlePageChange(currentPage + 1)} 
-                                disabled={currentPage === totalPages || loading}
-                                style={styles.pageButton}
-                            >
-                                Sau <span role="img" aria-label="next">➡️</span>
-                            </button>
+                </div>
+            </div>
+
+            {selectedComic && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.modal}>
+                        <div style={styles.modalHeader}>
+                            <h3 style={{margin:0}}>Duyệt truyện: {selectedComic.TenTruyen}</h3>
+                            <button onClick={() => setSelectedComic(null)} style={styles.closeBtn}>&times;</button>
                         </div>
-                    )}
-                </>
+                        <div style={styles.modalBody}>
+                            <div style={styles.comicMeta}>
+                                <p><b>Mô tả nội dung:</b> {selectedComic.MoTa || 'Không có mô tả.'}</p>
+                                <p><b>Danh sách chương:</b> (Nhấn để xem hình ảnh kiểm tra nội dung)</p>
+                                <div style={styles.chapterGrid}>
+                                    {selectedComic.ChuongTruyens?.map(ch => (
+                                        <button key={ch.CTID} onClick={() => handleViewChapter(ch.CTID)} style={styles.chapterBtn}>
+                                            Chương {ch.SoChuong}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {selectedChapter && (
+                                <div style={styles.imageViewer}>
+                                    <p style={{textAlign: 'center', marginBottom: '15px'}}><b>Đang xem: Chương {selectedChapter.SoChuong}</b></p>
+                                    <div style={styles.imageScroll}>
+                                        {selectedChapter.HinhAnhs?.map(img => (
+                                            <img key={img.HAID} src={img.LinkHinh} alt="Nội dung" style={styles.previewImg} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <div style={styles.aiBox}>
+                                <button onClick={() => getAIAdvice(selectedComic.TID)} style={styles.aiBtn} disabled={loadingAI}>
+                                    {loadingAI ? "🤖 Gemini đang đọc truyện..." : "🤖 Tham khảo AI Gemini (Comic Validation)"}
+                                </button>
+                                {aiAdvice && <div style={styles.aiText}><b>Gemini tư vấn:</b> {aiAdvice}</div>}
+                            </div>
+                        </div>
+                        <div style={styles.modalFooter}>
+                            <button onClick={() => handleAction(selectedComic.TID, false)} style={styles.rejectBtn}>❌ Từ chối</button>
+                            <button onClick={() => handleAction(selectedComic.TID, true)} style={styles.approveBtn}>✅ Duyệt & Xuất bản</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
 };
 
 const styles = {
-    container: { padding: '30px', backgroundColor: '#fff', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)' },
-    title: { borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '20px' },
-    controls: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' },
+    // 1. Container chính: Đã loại bỏ padding cố định để rộng nhất có thể
+    container: { 
+        padding: '20px', 
+        backgroundColor: '#F4F7FE', 
+        minHeight: '100%', 
+        width: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        boxSizing: 'border-box'
+    },
+    mainTitle: { fontSize: '24px', color: '#2B3674', fontWeight: '700', marginBottom: '20px' },
+    
+    // 2. Card trắng: Dùng width 100%
+    whiteBox: { 
+        backgroundColor: 'white', 
+        padding: '25px', 
+        borderRadius: '15px', 
+        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+        width: '100%',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column'
+    },
+    headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+    boxTitle: { color: '#2B3674', fontSize: '18px', borderBottom: '2px solid #4318FF', paddingBottom: '5px', margin: 0 },
+    
+    // 3. SearchBar: Để flex-grow để input tự giãn
+    searchBar: { display: 'flex', gap: '15px', marginBottom: '20px', width: '100%' },
     filterGroup: { display: 'flex', alignItems: 'center', gap: '10px' },
-    select: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc' },
-    searchForm: { display: 'flex', gap: '5px' },
-    input: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #ccc', width: '300px' },
-    searchButton: { padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' },
-    error: { color: '#721c24', backgroundColor: '#f8d7da', padding: '10px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #f5c6cb' },
-    message: { color: '#155724', backgroundColor: '#d4edda', padding: '10px', borderRadius: '4px', marginBottom: '15px', border: '1px solid #c3e6cb' },
-    loading: { textAlign: 'center', padding: '40px', fontSize: '1.2em' },
-    summary: { marginBottom: '15px', fontWeight: 'bold', color: '#495057' },
-    table: { width: '100%', borderCollapse: 'separate', borderSpacing: '0 8px', marginTop: '15px' },
-    tableHeader: { backgroundColor: '#e9ecef' },
-    th: { textAlign: 'left', padding: '15px', borderBottom: '2px solid #dee2e6' },
-    thAction: { textAlign: 'center', padding: '15px', borderBottom: '2px solid #dee2e6' },
-    td: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd' },
-    tdTitle: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd', fontWeight: '600', color: '#007bff' },
-    tdAction: { padding: '15px', borderBottom: '1px solid #f1f1f1', backgroundColor: '#fdfdfd', textAlign: 'center' },
-    statusBadge: {
-        UNVERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#ffc107', color: 'black', fontSize: '0.85em', fontWeight: '600' },
-        VERIFIED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#28a745', color: 'white', fontSize: '0.85em', fontWeight: '600' },
-        REJECTED: { padding: '5px 10px', borderRadius: '15px', backgroundColor: '#dc3545', color: 'white', fontSize: '0.85em', fontWeight: '600' },
-    },
-    actionButton: {
-        padding: '6px 12px',
-        margin: '0 4px',
-        color: 'white',
-        border: 'none',
-        borderRadius: '5px',
-        cursor: 'pointer',
-        fontSize: '0.9em',
-        transition: 'opacity 0.2s',
-    },
-    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '30px', gap: '20px' },
-    pageButton: { padding: '8px 15px', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '5px', cursor: 'pointer', transition: 'background-color 0.2s' },
-    pageInfo: { fontWeight: 'bold', color: '#343a40' }
+    label: { fontWeight: 'bold', fontSize: '14px' },
+    select: { padding: '8px', borderRadius: '8px', border: '1px solid #E0E5F2' },
+    inputGroup: { display: 'flex', flex: 1, gap: '10px' },
+    input: { flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #E0E5F2' },
+    btnSearch: { backgroundColor: '#4318FF', color: 'white', border: 'none', padding: '0 25px', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
+    
+    summaryText: { fontSize: '14px', color: '#707EAE', margin: 0 },
+    
+    // 4. Bảng: Ép bảng dùng 100% chiều rộng của Card
+    tableWrapper: { width: '100%', overflowX: 'auto' },
+    table: { width: '100%', borderCollapse: 'collapse', minWidth: '800px' },
+    tableHeaderRow: { borderBottom: '1px solid #E9EDF7' },
+    th: { padding: '15px', textAlign: 'left', color: '#A3AED0', fontSize: '12px', textTransform: 'uppercase' },
+    td: { padding: '15px', borderBottom: '1px solid #F4F7FE', fontSize: '14px', color: '#2B3674' },
+    tr: { transition: '0.2s', ':hover': { backgroundColor: '#F7F9FF' } },
+    tdCenter: { padding: '50px', textAlign: 'center', color: '#A3AED0' },
+    
+    statusBadge: { backgroundColor: '#FFF4E5', color: '#FF9800', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' },
+    actionBtn: { color: '#4318FF', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold' },
+    
+    // 5. Modal: Đã tăng width lên 95% để rộng hơn khi duyệt
+    modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+    modal: { backgroundColor: 'white', width: '95%', maxWidth: '1400px', borderRadius: '20px', maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+    modalHeader: { padding: '20px', borderBottom: '1px solid #E9EDF7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    closeBtn: { border: 'none', background: 'none', fontSize: '28px', cursor: 'pointer', color: '#A3AED0' },
+    modalBody: { padding: '20px', overflowY: 'auto', flex: 1 },
+    
+    comicMeta: { marginBottom: '20px', padding: '15px', backgroundColor: '#F4F7FE', borderRadius: '12px' },
+    chapterGrid: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' },
+    chapterBtn: { padding: '8px 15px', background: 'white', border: '1px solid #E0E5F2', borderRadius: '8px', cursor: 'pointer' },
+    
+    imageViewer: { background: '#111', padding: '20px', borderRadius: '15px', marginBottom: '20px', color: '#fff' },
+    imageScroll: { display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '600px', overflowY: 'auto', alignItems: 'center' },
+    previewImg: { width: 'auto', maxWidth: '100%' },
+    
+    aiBox: { padding: '20px', background: '#F0F3FF', borderRadius: '15px', border: '1px dashed #4318FF' },
+    aiBtn: { width: '100%', padding: '12px', background: '#4318FF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
+    aiText: { marginTop: '10px', fontSize: '14px', color: '#2B3674', padding: '10px', backgroundColor: '#fff', borderRadius: '8px' },
+    
+    modalFooter: { padding: '15px 20px', borderTop: '1px solid #E9EDF7', display: 'flex', justifyContent: 'flex-end', gap: '10px' },
+    approveBtn: { padding: '10px 25px', background: '#05CD99', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' },
+    rejectBtn: { padding: '10px 25px', background: '#EE5D50', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }
 };
 
-export default ComicManagementPage;
+export default ManageComicsPage;

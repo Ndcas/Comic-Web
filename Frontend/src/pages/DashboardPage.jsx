@@ -1,197 +1,231 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-
 import { useAuth, useAuthAxios } from '../utils/AuthContext'; 
-
-const API_PATH = '/admin/baoCaoHeThong'; 
-const REFRESH_INTERVAL_MS = 300000; 
+import { 
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
+    ResponsiveContainer, BarChart, Bar, Legend 
+} from 'recharts';
 
 const DashboardPage = () => {
     const { logout } = useAuth(); 
     const authAxios = useAuthAxios(); 
-
     const navigate = useNavigate();
     const [report, setReport] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
-    const fetchReport = React.useCallback(async () => {
+    const fetchReport = useCallback(async (force = false) => {
         setLoading(true);
-        setError(null);
-        
         try {
-            const response = await authAxios.get(API_PATH); 
-            
-         
-            let reportData = response.data;
-            
-            
-            if (reportData && reportData.baoCao) {
-                reportData = reportData.baoCao;
-            } else if (reportData && reportData.data) {
-                reportData = reportData.data;
-            }
+            const url = force ? '/admin/baoCaoHeThong?force=true' : '/admin/baoCaoHeThong';
+            const response = await authAxios.get(url); 
+            const rawData = response.data;
 
-         
-            if (reportData && (reportData.numOfUsers !== undefined || reportData.numOfComics !== undefined)) {
-                setReport(reportData);
-            } else if (Array.isArray(reportData) && reportData.length > 0) {
-                
-                 setReport(reportData[0]);
-            } else {
-                
-                setReport({
-                    numOfUsers: 0, numOfComics: 0, numOfChapters: 0,
-                    verifiedComics: 0, unverifiedComics: 0, rejectedComics: 0,
-                    unprocessedComicReports: 0, unprocessedCommentReports: 0,
-                    reportTime: new Date().toISOString(),
-                    viewsByDays: {} 
-                });
-            }
-            
+            const d = rawData.report ? rawData.report : rawData;
+
+            const formatDataForChart = (arr) => (arr || []).map(item => ({
+                ...item,
+                displayDate: new Date(item.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+            }));
+
+            setReport({
+                ...d,
+                viewsChartData: formatDataForChart(d.viewsByDays),
+                profitChartData: formatDataForChart(d.profitPointsByDays)
+            });
         } catch (err) {
-            const errorMessage = err.response?.data?.error || 'Không thể tải báo cáo hệ thống. Vui lòng kiểm tra lại kết nối.';
-            
-            if (err.response?.status === 403) {
-                alert("Bạn không có quyền truy cập trang này. Đang đăng xuất.");
-                logout(); 
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                logout();
                 navigate('/admin/login');
-            } else {
-                setError(errorMessage);
-               
-                setReport(null);
             }
         } finally {
             setLoading(false);
         }
-    }, [authAxios, logout, navigate]); 
+    }, [authAxios, logout, navigate]);
 
     useEffect(() => {
         fetchReport();
-        
-        const intervalId = setInterval(fetchReport, REFRESH_INTERVAL_MS); 
+    }, [fetchReport]);
 
-        return () => clearInterval(intervalId); 
-    }, [fetchReport]); 
-
-    const formatNumber = (num) => (num || 0).toLocaleString('vi-VN');
-    const formatDate = (dateString) => {
-        if (!dateString) return 'Chưa có dữ liệu';
-      
-        if (dateString.includes('Chưa có dữ liệu')) return dateString;
-        
-        return new Date(dateString).toLocaleString('vi-VN', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            hour12: false
-        });
-    };
-    
-    if (loading && !report) return <div style={styles.center}>Đang tải Báo cáo Hệ thống...</div>;
-    
-    if (error && !report) return <div style={{...styles.center, color: '#dc3545', padding: '20px', border: '1px solid #dc3545', backgroundColor: '#ffe6e6', borderRadius: '8px'}}>🚨 Lỗi: {error}</div>;
-
-    if (!report) {
-        return <div style={styles.center}>Không có dữ liệu báo cáo để hiển thị.</div>;
-    }
-
+    if (loading && !report) return <div style={styles.center}>Đang tải dữ liệu báo cáo...</div>;
 
     return (
         <div style={styles.container}>
-            <header style={styles.header}>
-                <h2 style={styles.headerTitle}>📊 Dashboard Tổng quan Hệ thống</h2>
-                <span style={styles.updateTime}>
-                    Cập nhật lần cuối: **{formatDate(report.reportTime)}**
-                    {loading && <span style={styles.refreshingText}> (Đang làm mới...)</span>}
-                </span>
-            </header>
-
-            <div style={styles.grid}>
-                <Card title="Tổng số Người dùng" metric={formatNumber(report.numOfUsers)} color="#007bff" icon="👤" />
-                <Card title="Tổng số Truyện" metric={formatNumber(report.numOfComics)} color="#17a2b8" icon="📚" />
-                <Card title="Tổng số Chương" metric={formatNumber(report.numOfChapters)} color="#28a745" icon="📖" />
-                
-                <Card title="Truyện Đã Duyệt" metric={formatNumber(report.verifiedComics)} color="#28a745" icon="✅" />
-                <Card title="Truyện Chờ Duyệt" metric={formatNumber(report.unverifiedComics)} color="#ffc107" icon="⏳" />
-                <Card title="Truyện Bị Từ Chối" metric={formatNumber(report.rejectedComics)} color="#dc3545" icon="❌" />
-                
-                <Card title="Báo cáo Truyện chưa xử lý" metric={formatNumber(report.unprocessedComicReports)} color="#ff5722" icon="⚠️" />
-                <Card title="Báo cáo Bình luận chưa xử lý" metric={formatNumber(report.unprocessedCommentReports)} color="#ff5722" icon="💬" />
-                
-                {/* Đã xóa Card Lợi nhuận */}
-            </div>
-            
-            <div style={styles.dataSection}>
-                {/* Đã sửa Tiêu đề: Chỉ còn Lượt xem */}
-                <h3>Dữ liệu Lượt xem (30 Ngày)</h3>
-                <p style={styles.subHeader}>Dữ liệu thô để vẽ biểu đồ/đồ thị (viewsByDays)</p>
-                
-                <div style={styles.dataContainer}>
-                    {/* Giữ lại DataBox để thầy bạn thấy dữ liệu viewsByDays đã được tải */}
-                    <DataBox title="Lượt xem theo ngày" data={report.viewsByDays} />
+            {/* Header section */}
+            <div style={styles.header}>
+                <div>
+                    <h2 style={styles.headerTitle}>Quản Trị Hệ Thống</h2>
+                    <p style={styles.subTitle}>Thời gian báo cáo: {new Date(report?.reportTime).toLocaleString('vi-VN')}</p>
                 </div>
-                
-                <button onClick={logout} style={styles.logoutButton}>Đăng Xuất</button>
+                <div style={styles.actionGroup}>
+                    <button onClick={() => fetchReport(true)} style={styles.refreshBtn}>🔄 Làm mới</button>
+                    <button onClick={logout} style={styles.logoutBtn}>🚪 Đăng xuất</button>
+                </div>
             </div>
             
+            {/* First Metrics Grid */}
+            <div style={styles.grid}>
+                <Card title="Người dùng hoạt động" metric={report?.numOfUsers} color="#4318FF" icon="👤" />
+                <Card title="Tổng số chương" metric={report?.numOfChapters} color="#2B3674" icon="📖" />
+                <Card title="Truyện đã duyệt" metric={report?.verifiedComics} color="#05CD99" icon="✅" />
+                <Card title="Truyện chờ duyệt" metric={report?.unverifiedComics} color="#FFB547" icon="⏳" />
+            </div>
+
+            {/* Second Metrics Grid */}
+            <div style={{...styles.grid, marginTop: '20px'}}>
+                <Card title="Truyện bị từ chối" metric={report?.rejectedComics} color="#EE5D50" icon="❌" />
+                <Card title="Báo cáo truyện" metric={report?.unprocessedComicReports} color="#E31A1A" icon="⚠️" />
+                <Card title="Báo cáo bình luận" metric={report?.unprocessedCommentReports} color="#E31A1A" icon="💬" />
+                {/* Thêm một card trống hoặc card khác để giữ grid 4 cột cân đối nếu cần */}
+                <div style={{visibility: 'hidden'}}><Card title="" metric={0} color="#fff" icon="" /></div>
+            </div>
+
+            {/* Charts Section */}
+            <div style={styles.chartsWrapper}>
+                <div style={styles.chartBox}>
+                    <h3 style={styles.chartTitle}>Thống kê Lượt xem (30 ngày)</h3>
+                    <div style={{ width: '100%', height: 400 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={report?.viewsChartData}>
+                                <defs>
+                                    <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#4318FF" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#4318FF" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9EDF7" />
+                                <XAxis dataKey="displayDate" tick={{fontSize: 12, fill: '#A3AED0'}} axisLine={false} tickLine={false} />
+                                <YAxis tick={{fontSize: 12, fill: '#A3AED0'}} axisLine={false} tickLine={false} />
+                                <Tooltip contentStyle={{borderRadius: '15px', border: 'none', boxShadow: '0px 18px 40px rgba(112, 144, 176, 0.1)'}} />
+                                <Area type="monotone" dataKey="views" name="Lượt xem" stroke="#4318FF" fill="url(#colorViews)" strokeWidth={3} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div style={styles.chartBox}>
+                    <h3 style={styles.chartTitle}>Thống kê Điểm lời (30 ngày)</h3>
+                    <div style={{ width: '100%', height: 400 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={report?.profitChartData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E9EDF7" />
+                                <XAxis dataKey="displayDate" tick={{fontSize: 12, fill: '#A3AED0'}} axisLine={false} tickLine={false} />
+                                <YAxis tick={{fontSize: 12, fill: '#A3AED0'}} axisLine={false} tickLine={false} />
+                                <Tooltip contentStyle={{borderRadius: '15px', border: 'none', boxShadow: '0px 18px 40px rgba(112, 144, 176, 0.1)'}} />
+                                <Legend verticalAlign="top" align="right" height={36}/>
+                                <Bar dataKey="points" name="Điểm lời" fill="#05CD99" radius={[10, 10, 0, 0]} barSize={30} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
 
 const Card = ({ title, metric, color, icon }) => (
-    <div style={{...styles.card, borderLeft: `5px solid ${color}`}}>
-        <div style={styles.cardHeader}>
-            <span style={{...styles.cardIcon, backgroundColor: color}}>{icon}</span>
-            <h4 style={{color: '#4a5568', margin: 0, fontSize: '1em'}}>{title}</h4>
+    <div style={styles.card}>
+        <div style={{...styles.iconBox, backgroundColor: color + '1A', color: color}}>{icon}</div>
+        <div>
+            <p style={styles.cardLabel}>{title}</p>
+            <p style={styles.cardValue}>{(metric || 0).toLocaleString('vi-VN')}</p>
         </div>
-        <p style={styles.metric}>{metric}</p>
     </div>
 );
 
-const DataBox = ({ title, data }) => {
-    const isDataEmpty = !data || (typeof data === 'object' && Object.keys(data).length === 0) || (Array.isArray(data) && data.length === 0);
-
-    return (
-        <div style={styles.dataBox}>
-            <h4 style={styles.dataBoxTitle}>{title}</h4>
-            {isDataEmpty ? (
-                <p style={{color: '#777'}}>Không có dữ liệu trong 30 ngày qua.</p>
-            ) : (
-                <pre style={styles.preCode}>{JSON.stringify(data, null, 2)}</pre>
-            )}
-        </div>
-    );
-};
-
-
 const styles = {
-    container: { padding: '20px 40px', backgroundColor: '#eef2f7', minHeight: '100vh' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #4c51bf', paddingBottom: '15px', marginBottom: '35px' },
-    headerTitle: { color: '#1a202c', fontSize: '2em' },
-    updateTime: { fontSize: '0.9em', color: '#6c757d', fontStyle: 'italic' },
-    refreshingText: { color: '#4c51bf', marginLeft: '5px', fontWeight: 'bold' },
-    subHeader: { color: '#718096', fontSize: '0.9em', marginBottom: '20px' },
-    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '40px' },
-    card: { backgroundColor: 'white', padding: '25px', borderRadius: '10px', boxShadow: '0 5px 15px rgba(0, 0, 0, 0.08)', textAlign: 'left', transition: 'transform 0.2s', position: 'relative' },
-    cardHeader: { display: 'flex', alignItems: 'center', marginBottom: '10px' },
-    cardIcon: { marginRight: '10px', padding: '5px 8px', borderRadius: '5px', color: 'white', fontWeight: 'bold', fontSize: '1.2em' },
-    metric: { fontSize: '2.5em', fontWeight: '700', margin: '0', color: '#343a40' },
-    dataSection: { backgroundColor: 'white', padding: '30px', borderRadius: '10px', boxShadow: '0 5px 15px rgba(0, 0, 0, 0.08)' },
-    dataContainer: { display: 'flex', gap: '30px', flexWrap: 'wrap', marginTop: '15px' },
-    dataBox: { flex: 1, minWidth: '350px', backgroundColor: '#f7fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' },
-    dataBoxTitle: { color: '#2d3748', borderBottom: '1px dashed #cbd5e0', paddingBottom: '10px', marginBottom: '15px' },
-    preCode: { whiteSpace: 'pre-wrap', overflowX: 'auto', fontSize: '0.85em', maxHeight: '400px', backgroundColor: '#edf2f7', padding: '10px', borderRadius: '4px', border: 'none' },
-    center: { textAlign: 'center', marginTop: '20vh', fontSize: '1.5em', fontWeight: '500' },
-    logoutButton: { 
-        marginTop: '40px', 
-        padding: '12px 25px', 
-        backgroundColor: '#dc3545', 
-        color: 'white', 
+    // Ép container rộng tối đa và khử khoảng cách thừa
+    container: { 
+        padding: '20px', 
+        backgroundColor: '#F4F7FE', 
+        minHeight: '100vh',
+        width: '100%',
+        boxSizing: 'border-box'
+    },
+    header: { 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '25px',
+        width: '100%'
+    },
+    headerTitle: { color: '#2B3674', fontSize: '26px', fontWeight: 'bold', margin: 0 },
+    subTitle: { color: '#707EAE', fontSize: '14px', margin: '5px 0 0 0' },
+    actionGroup: { display: 'flex', gap: '12px' },
+    refreshBtn: { 
+        padding: '10px 20px', 
+        backgroundColor: '#fff', 
+        border: '1px solid #E0E5F2', 
+        borderRadius: '12px', 
+        cursor: 'pointer', 
+        fontWeight: 'bold', 
+        color: '#2B3674',
+        transition: '0.3s'
+    },
+    logoutBtn: { 
+        padding: '10px 25px', 
+        backgroundColor: '#EE5D50', 
+        color: '#fff', 
         border: 'none', 
-        borderRadius: '8px', 
-        cursor: 'pointer',
+        borderRadius: '12px', 
+        cursor: 'pointer', 
+        fontWeight: 'bold' 
+    },
+    // Grid cho các Card thống kê: Dùng 1fr để tự động lấp đầy chiều ngang
+    grid: { 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+        gap: '20px',
+        width: '100%'
+    },
+    card: { 
+        backgroundColor: 'white', 
+        padding: '25px', 
+        borderRadius: '20px', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '20px', 
+        boxShadow: '0px 18px 40px rgba(112, 144, 176, 0.08)',
+        width: '100%',
+        boxSizing: 'border-box'
+    },
+    iconBox: { 
+        width: '56px', 
+        height: '56px', 
+        borderRadius: '50%', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        fontSize: '24px',
+        flexShrink: 0
+    },
+    cardLabel: { color: '#A3AED0', fontSize: '15px', margin: 0, fontWeight: '500' },
+    cardValue: { color: '#2B3674', fontSize: '24px', fontWeight: 'bold', margin: 0 },
+    
+    // Wrapper biểu đồ: Tận dụng chiều ngang rộng
+    chartsWrapper: { 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', 
+        gap: '25px', 
+        marginTop: '30px',
+        width: '100%'
+    },
+    chartBox: { 
+        backgroundColor: 'white', 
+        padding: '25px', 
+        borderRadius: '20px', 
+        boxShadow: '0px 18px 40px rgba(112, 144, 176, 0.08)',
+        width: '100%',
+        boxSizing: 'border-box'
+    },
+    chartTitle: { color: '#2B3674', fontSize: '18px', fontWeight: 'bold', marginBottom: '25px' },
+    center: { 
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontSize: '18px', 
         fontWeight: 'bold',
-        transition: 'background-color 0.3s'
+        color: '#2B3674'
     }
 };
 

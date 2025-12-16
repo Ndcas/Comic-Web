@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import axios from 'axios';
 
 const AuthContext = createContext({
@@ -18,8 +18,7 @@ const USER_API_PREFIX = '/nguoiDung';
 const isTokenExpired = (exp) => {
     if (!exp) return true;
     const expiryTime = parseInt(exp) * 1000;
-    const now = Date.now();
-    return (expiryTime - now) < (5 * 60 * 1000);
+    return (expiryTime - Date.now()) < (1 * 60 * 1000);
 };
 
 const getUserFromLocalStorage = () => {
@@ -29,25 +28,12 @@ const getUserFromLocalStorage = () => {
     const exp = localStorage.getItem("exp");
     const tenTaiKhoan = localStorage.getItem("tenTaiKhoan");
 
-    if (token && role && email && exp && !isTokenExpired(exp)) {
-        return {
-            token,
-            role,
-            email: email,
-            exp: exp,
-            TenTaiKhoan: tenTaiKhoan || email
-        };
+    if (token && role && !isTokenExpired(exp)) {
+        return { token, role, email, exp, TenTaiKhoan: tenTaiKhoan || email };
     }
-
-    if (token && isTokenExpired(exp)) {
-        console.log("Token đã hết hạn. Đang xóa token cũ.");
-        localStorage.clear();
-    }
-
     return null;
 };
 
-// --- HOOKS EXPORT ---
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
@@ -55,10 +41,43 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [favoriteTIDs, setFavoriteTIDs] = useState(new Set());
 
-   
-    const authAxios = useAuthAxios(); 
+    const logout = useCallback(() => {
+        const currentRole = localStorage.getItem("role");
+        localStorage.clear();
+        setUser(null);
+        setFavoriteTIDs(new Set());
+        
+        if (currentRole?.toUpperCase() === 'ADMIN') {
+            window.location.href = '/admin/login';
+        } else {
+            window.location.href = '/login';
+        }
+    }, []);
 
- 
+    const authAxios = useMemo(() => {
+        const instance = axios.create({
+            baseURL: BASE_URL,
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        instance.interceptors.request.use((config) => {
+            const token = localStorage.getItem('token');
+            if (token) config.headers['Authorization'] = `Bearer ${token}`;
+            return config;
+        });
+
+        instance.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401 && !error.config.url.includes('danhSachYeuThich')) {
+                    logout();
+                }
+                return Promise.reject(error);
+            }
+        );
+        return instance;
+    }, [logout]);
+
     const login = useCallback(() => {
         setUser(getUserFromLocalStorage());
     }, []);
@@ -68,12 +87,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('exp', newExpiry);
         localStorage.setItem('role', newRole);
         localStorage.setItem('email', newEmail);
-
-        if (newTenTaiKhoan) {
-            localStorage.setItem('tenTaiKhoan', newTenTaiKhoan);
-        } else {
-            localStorage.removeItem('tenTaiKhoan');
-        }
+        if (newTenTaiKhoan) localStorage.setItem('tenTaiKhoan', newTenTaiKhoan);
 
         setUser({
             token: newToken,
@@ -84,129 +98,53 @@ export const AuthProvider = ({ children }) => {
         });
     }, []);
 
-    const logout = useCallback(() => {
-        localStorage.clear();
-        setUser(null);
-        setFavoriteTIDs(new Set());
-    }, []);
-
-    // --- LOGIC YÊU THÍCH ---
-
     const fetchFavorites = useCallback(async () => {
-        if (!user || !user.token) {
-            setFavoriteTIDs(new Set());
+        if (!user || !user.token || user.role?.toUpperCase() === 'ADMIN') {
             return;
         }
 
         try {
             const response = await authAxios.get(`${USER_API_PREFIX}/danhSachYeuThich`);
-
-            console.log("Dữ liệu Yêu thích từ Server:", response.data);
-
-            let favoriteData = response.data.truyens || response.data.danhSachYeuThich;
-
-            if (!Array.isArray(favoriteData) && Array.isArray(response.data)) {
-                favoriteData = response.data;
-            }
-
+            let favoriteData = response.data.truyens || response.data.danhSachYeuThich || response.data;
             if (Array.isArray(favoriteData)) {
                 const TIDs = favoriteData.map(item => parseInt(item.TID));
                 setFavoriteTIDs(new Set(TIDs));
-            } else {
-                setFavoriteTIDs(new Set());
             }
-
         } catch (error) {
-            console.error("Lỗi khi tải danh sách yêu thích:", error);
-            setFavoriteTIDs(new Set());
+            console.warn("Bỏ qua lỗi fetch yêu thích cho Admin.");
         }
     }, [user, authAxios]);
 
-    const isFavorite = useCallback((TID) => {
-        return favoriteTIDs.has(parseInt(TID));
-    }, [favoriteTIDs]);
+    const isFavorite = useCallback((TID) => favoriteTIDs.has(parseInt(TID)), [favoriteTIDs]);
 
-    // 🌟 SỬA ĐỔI: Chỉ cho phép Thêm (themVaoDanhSachYeuThich), không cho phép Xóa
     const toggleFavorite = useCallback(async (TID) => {
-        const tidNumber = parseInt(TID);
-
-        if (!user) {
-            alert("Vui lòng đăng nhập để thực hiện chức năng Yêu thích.");
-            return false;
-        }
-
-        const isCurrentlyFavorite = isFavorite(tidNumber);
+        if (!user) return alert("Vui lòng đăng nhập.");
+        if (user.role?.toUpperCase() === 'ADMIN') return;
         
-        // Nếu đã yêu thích, không làm gì cả (Chỉ cho phép thêm, không cho phép xóa)
-        if (isCurrentlyFavorite) {
-            alert("Truyện này đã có trong danh sách yêu thích của bạn.");
-            return true;
-        }
-
-        // Action URL chỉ là thêm
-        const actionUrl = `${USER_API_PREFIX}/themVaoDanhSachYeuThich`;
-
+        const tidNumber = parseInt(TID);
         try {
-            const response = await authAxios.post(actionUrl, { TID: tidNumber });
-
+            const response = await authAxios.post(`${USER_API_PREFIX}/themVaoDanhSachYeuThich`, { TID: tidNumber });
             if (response.status === 200 || response.status === 201) {
-
-                // Cập nhật state Frontend: chỉ thêm
-                setFavoriteTIDs(prev => {
-                    const newSet = new Set(prev);
-                    newSet.add(tidNumber);
-                    return newSet;
-                });
+                setFavoriteTIDs(prev => new Set(prev).add(tidNumber));
                 return true;
-            } else {
-                throw new Error(response.data.error || "Lỗi Server khi cập nhật yêu thích.");
             }
-
         } catch (error) {
-            console.error("Lỗi khi thêm yêu thích:", error);
-
-            let errorMessage = `Thao tác thêm yêu thích thất bại.`;
-
-            if (error.response && error.response.status === 400) {
-                const backendError = error.response.data.error || error.response.data.message || 'Dữ liệu yêu cầu không hợp lệ.';
-                errorMessage = `${errorMessage} Chi tiết: ${backendError}`;
-            } else {
-                errorMessage = `${errorMessage} Vui lòng kiểm tra console.`;
-            }
-
-            alert(errorMessage);
             return false;
         }
-    }, [user, isFavorite, authAxios]);
-
-
-    // --- EFFECTS ---
+    }, [user, authAxios]);
 
     useEffect(() => {
-        const currentUser = getUserFromLocalStorage();
-        setUser(currentUser);
+        setUser(getUserFromLocalStorage());
         setLoading(false);
     }, []);
 
     useEffect(() => {
-        if (user) {
-            fetchFavorites();
-        } else {
-            setFavoriteTIDs(new Set());
-        }
+        if (user) fetchFavorites();
     }, [user, fetchFavorites]);
 
-
-    // --- MEMOIZED VALUE ---
     const value = useMemo(() => ({
-        user,
-        logout,
-        login,
-        loading,
-        updateToken,
-        isFavorite,
-        toggleFavorite,
-    }), [user, logout, login, loading, updateToken, isFavorite, toggleFavorite]);
+        user, logout, login, loading, updateToken, isFavorite, toggleFavorite, authAxios
+    }), [user, logout, login, loading, updateToken, isFavorite, toggleFavorite, authAxios]);
 
     return (
         <AuthContext.Provider value={value}>
@@ -215,104 +153,7 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// --- LOGIC INTERCEPTOR (Giữ nguyên) ---
-
-let isRefreshing = false;
-let failedRequestsQueue = [];
-
-const axiosRefreshRequest = async () => {
-    try {
-        const refreshToken = localStorage.getItem('token');
-
-        const response = await axios.post(`${BASE_URL}/admin/refresh_token`, {}, {
-            headers: {
-                'Authorization': `Bearer ${refreshToken}`
-            }
-        });
-
-        return response.data;
-
-    } catch (err) {
-        console.error("Lỗi khi làm mới token:", err);
-        throw err;
-    }
-}
-
 export const useAuthAxios = () => {
-    // Lưu ý: useAuth() được sử dụng ở đây
-    const { user, logout, updateToken } = useAuth(); 
-
-    const authAxiosRef = useRef(null);
-
-    if (!authAxiosRef.current) {
-        authAxiosRef.current = axios.create({
-            baseURL: BASE_URL,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        authAxiosRef.current.interceptors.request.use(
-            (config) => {
-                const token = localStorage.getItem('token');
-                if (token && !config.url.endsWith('/admin/refresh_token')) {
-                    config.headers['Authorization'] = `Bearer ${token}`;
-                }
-                return config;
-            },
-            (error) => Promise.reject(error)
-        );
-
-        authAxiosRef.current.interceptors.response.use(
-            (response) => response,
-            async (error) => {
-                const originalRequest = error.config;
-                if (error.response?.status === 401 && !originalRequest._retry) {
-                    originalRequest._retry = true;
-
-                    if (!isRefreshing) {
-                        isRefreshing = true;
-
-                        try {
-                            const refreshData = await axiosRefreshRequest();
-
-                            updateToken(
-                                refreshData.token,
-                                refreshData.exp,
-                                user.role,
-                                user.email,
-                                user.TenTaiKhoan
-                            );
-
-                            failedRequestsQueue.forEach(promise => promise.resolve(refreshData.token));
-                            failedRequestsQueue = [];
-
-                            originalRequest.headers['Authorization'] = `Bearer ${refreshData.token}`;
-                            return authAxiosRef.current(originalRequest);
-
-                        } catch (refreshError) {
-                            logout();
-                            return Promise.reject(refreshError);
-                        } finally {
-                            isRefreshing = false;
-                        }
-                    }
-
-                    return new Promise((resolve, reject) => {
-                        failedRequestsQueue.push({
-                            resolve: (token) => {
-                                originalRequest.headers['Authorization'] = `Bearer ${token}`;
-                                resolve(authAxiosRef.current(originalRequest));
-                            },
-                            reject: (err) => reject(err)
-                        });
-                    });
-                }
-
-                return Promise.reject(error);
-            }
-        );
-    }
-
-    return authAxiosRef.current;
+    const { authAxios } = useAuth();
+    return authAxios;
 };
